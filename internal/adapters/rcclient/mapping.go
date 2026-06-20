@@ -98,3 +98,22 @@ func (r jobStatusResponse) toDomain() (domain.JobStatus, error) {
 func parseRCTime(s string) (time.Time, error) {
 	return time.Parse(time.RFC3339Nano, s)
 }
+
+// mountResponse mirrors one entry of mount/listmounts.
+type mountResponse struct {
+	Fs         string `json:"Fs"`
+	MountPoint string `json:"MountPoint"`
+	MountedOn  string `json:"MountedOn"`
+}
+
+func (m mountResponse) toDomain() (domain.Mount, error) {
+	mount := domain.Mount{Fs: m.Fs, MountPoint: m.MountPoint}
+	if m.MountedOn != "" {
+		t, err := parseRCTime(m.MountedOn)
+		if err != nil {
+			return domain.Mount{}, fmt.Errorf("parsing mount time: %w", err)
+		}
+		mount.MountedOn = t
+	}
+	return mount, nil
+}

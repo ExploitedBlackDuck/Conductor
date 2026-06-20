@@ -8,6 +8,10 @@ export function CancelRun(arg1:string):Promise<app.ErrorDTO>;
 
 export function GetCatalog():Promise<app.CatalogDTO>;
 
+export function ListMounts():Promise<app.MountsResultDTO>;
+
+export function MountFs(arg1:string,arg2:string,arg3:string):Promise<app.ErrorDTO>;
+
 export function OnReady(arg1:context.Context,arg2:shell.Runtime):Promise<void>;
 
 export function OnShutdown(arg1:context.Context):Promise<void>;
@@ -19,5 +23,7 @@ export function StartRun(arg1:app.PreviewRequest,arg2:boolean):Promise<app.RunRe
 export function StatsSnapshot():Promise<app.StatsEventDTO>;
 
 export function Status():Promise<app.StatusDTO>;
+
+export function UnmountFs(arg1:string):Promise<app.ErrorDTO>;
 
 export function Version():Promise<string>;

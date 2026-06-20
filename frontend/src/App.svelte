@@ -5,13 +5,15 @@
   import StatusPanel from "./lib/components/StatusPanel.svelte";
   import OperationBuilder from "./lib/components/OperationBuilder.svelte";
   import LiveDashboard from "./lib/components/LiveDashboard.svelte";
+  import MountsView from "./lib/components/MountsView.svelte";
 
   // Views land as their phases do; only those that are real are shown.
-  type View = "transfers" | "dashboard" | "status";
+  type View = "transfers" | "dashboard" | "mounts" | "status";
   let view: View = "transfers";
   const nav: { id: View; label: string }[] = [
     { id: "transfers", label: "Transfers" },
     { id: "dashboard", label: "Dashboard" },
+    { id: "mounts", label: "Mounts" },
     { id: "status", label: "Status" },
   ];
 
@@ -44,6 +46,8 @@
       <OperationBuilder />
     {:else if view === "dashboard"}
       <LiveDashboard />
+    {:else if view === "mounts"}
+      <MountsView />
     {:else if view === "status"}
       <StatusPanel />
     {/if}

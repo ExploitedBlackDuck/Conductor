@@ -1,0 +1,9 @@
+{
+	"mountPoints": [
+		{
+			"Fs": "example-mem:bucket",
+			"MountPoint": "/Users/example/mnt/bucket",
+			"MountedOn": "2026-06-20T12:00:00.000000-04:00"
+		}
+	]
+}

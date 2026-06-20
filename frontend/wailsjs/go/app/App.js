@@ -10,6 +10,14 @@ export function GetCatalog() {
   return window['go']['app']['App']['GetCatalog']();
 }
 
+export function ListMounts() {
+  return window['go']['app']['App']['ListMounts']();
+}
+
+export function MountFs(arg1, arg2, arg3) {
+  return window['go']['app']['App']['MountFs'](arg1, arg2, arg3);
+}
+
 export function OnReady(arg1, arg2) {
   return window['go']['app']['App']['OnReady'](arg1, arg2);
 }
@@ -32,6 +40,10 @@ export function StatsSnapshot() {
 
 export function Status() {
   return window['go']['app']['App']['Status']();
+}
+
+export function UnmountFs(arg1) {
+  return window['go']['app']['App']['UnmountFs'](arg1);
 }
 
 export function Version() {

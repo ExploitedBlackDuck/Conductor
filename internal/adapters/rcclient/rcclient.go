@@ -129,6 +129,40 @@ func (c *Client) SyncCopy(ctx context.Context, srcFs, dstFs string, config map[s
 	return resp.JobID, nil
 }
 
+// MountMount mounts fs at mountPoint via the daemon (mount/mount). mountType is
+// optional (e.g. "" for the default, or "nfs").
+func (c *Client) MountMount(ctx context.Context, fs, mountPoint, mountType string) error {
+	body := map[string]any{"fs": fs, "mountPoint": mountPoint}
+	if mountType != "" {
+		body["mountType"] = mountType
+	}
+	return c.call(ctx, "mount/mount", body, nil)
+}
+
+// MountUnmount unmounts the mount at mountPoint (mount/unmount).
+func (c *Client) MountUnmount(ctx context.Context, mountPoint string) error {
+	return c.call(ctx, "mount/unmount", map[string]any{"mountPoint": mountPoint}, nil)
+}
+
+// ListMounts returns the active mounts (mount/listmounts).
+func (c *Client) ListMounts(ctx context.Context) ([]domain.Mount, error) {
+	var resp struct {
+		MountPoints []mountResponse `json:"mountPoints"`
+	}
+	if err := c.call(ctx, "mount/listmounts", nil, &resp); err != nil {
+		return nil, err
+	}
+	out := make([]domain.Mount, 0, len(resp.MountPoints))
+	for _, m := range resp.MountPoints {
+		dm, err := m.toDomain()
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, dm)
+	}
+	return out, nil
+}
+
 // SyncMove starts a sync/move on the daemon. See SyncCopy for the parameter
 // semantics; deleteEmptySrcDirs removes emptied source directories.
 func (c *Client) SyncMove(ctx context.Context, srcFs, dstFs string, config map[string]any, filter map[string][]string, deleteEmptySrcDirs, async bool) (int64, error) {

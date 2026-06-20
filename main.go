@@ -21,6 +21,7 @@ import (
 	"github.com/conductor-app/conductor/internal/core/audit"
 	"github.com/conductor-app/conductor/internal/core/control"
 	"github.com/conductor-app/conductor/internal/core/daemon"
+	"github.com/conductor-app/conductor/internal/core/mounts"
 	"github.com/conductor-app/conductor/internal/core/options"
 	"github.com/conductor-app/conductor/internal/core/ports"
 	"github.com/conductor-app/conductor/internal/core/rclonebin"
@@ -157,7 +158,19 @@ func run() error {
 		Logger:  logger,
 	})
 
-	application := app.New(logger, buildinfo.Version(), ctrl, catalog, transferSvc)
+	mountSvc := mounts.New(func() (mounts.RC, error) {
+		addr, err := supervisor.Addr()
+		if err != nil {
+			return nil, err
+		}
+		creds, err := supervisor.Credentials()
+		if err != nil {
+			return nil, err
+		}
+		return rcclient.New(addr, creds.User, creds.Pass), nil
+	}, auditSvc)
+
+	application := app.New(logger, buildinfo.Version(), ctrl, catalog, transferSvc, mountSvc)
 
 	return shell.Run(shell.Config{
 		Window: shell.Window{

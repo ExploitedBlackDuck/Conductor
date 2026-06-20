@@ -109,6 +109,19 @@ func TestConfigListRemotes(t *testing.T) {
 	assert.Equal(t, []string{"example-local", "example-mem"}, remotes)
 }
 
+func TestListMounts(t *testing.T) {
+	t.Parallel()
+	srv := fixtureServer(t, map[string]string{"mount/listmounts": "mount_listmounts.json"})
+	c := clientFor(t, srv)
+
+	mounts, err := c.ListMounts(context.Background())
+	require.NoError(t, err)
+	require.Len(t, mounts, 1)
+	assert.Equal(t, "example-mem:bucket", mounts[0].Fs)
+	assert.Equal(t, "/Users/example/mnt/bucket", mounts[0].MountPoint)
+	assert.False(t, mounts[0].MountedOn.IsZero())
+}
+
 func TestJobList(t *testing.T) {
 	t.Parallel()
 	srv := fixtureServer(t, map[string]string{"job/list": "job_list.json"})
