@@ -1,0 +1,83 @@
+# Task runner (go-task). The phase gates in PROJECT-BOOK.md §7.10 are expressed
+# as the lint / test / test:integration / build targets below.
+version: "3"
+
+vars:
+  BIN: build/bin/conductor
+
+tasks:
+  default:
+    cmds:
+      - task --list
+    silent: true
+
+  tidy:
+    desc: Sync go.mod/go.sum.
+    cmds:
+      - go mod tidy
+
+  fmt:
+    desc: Format Go sources with gofumpt.
+    cmds:
+      - gofumpt -w .
+
+  lint:
+    desc: "Phase gate: gofumpt check + go vet + golangci-lint + govulncheck."
+    deps:
+      - frontend:build
+    cmds:
+      - 'test -z "$(gofumpt -l .)" || { echo "gofumpt: files need formatting (run task fmt):"; gofumpt -l .; exit 1; }'
+      - go vet ./...
+      - golangci-lint run
+      - govulncheck ./...
+
+  test:
+    desc: "Phase gate: unit tests, green on a bare machine (no rclone/keyring)."
+    deps:
+      - frontend:build
+    cmds:
+      - go test ./...
+
+  test:integration:
+    desc: "Phase gate: build-tagged integration tests (real rclone/keyring if present)."
+    cmds:
+      - go test -tags=integration ./...
+
+  frontend:install:
+    desc: Install frontend dependencies from the committed lockfile.
+    dir: frontend
+    cmds:
+      - npm ci
+
+  frontend:check:
+    desc: Type-check the frontend (svelte-check / strict TS).
+    dir: frontend
+    cmds:
+      - npm run check
+
+  frontend:build:
+    desc: Build the frontend into frontend/dist for embedding.
+    dir: frontend
+    cmds:
+      - npm run build
+
+  build:
+    desc: "Phase gate: build the runnable, window-opening binary (frontend embedded)."
+    deps:
+      - frontend:build
+    vars:
+      # Wails requires the desktop+production build tags; without them the
+      # binary refuses to start. Linux with webkit2gtk-4.1 needs the
+      # webkit2_41 tag; macOS additionally links the UniformTypeIdentifiers
+      # framework.
+      TAGS: 'desktop,production{{if eq OS "linux"}},webkit2_41{{end}}'
+      MAC_LDFLAGS: '{{if eq OS "darwin"}}-framework UniformTypeIdentifiers{{end}}'
+    cmds:
+      - CGO_ENABLED=1 CGO_LDFLAGS="{{.MAC_LDFLAGS}}" go build -tags "{{.TAGS}}" -ldflags "-w -s" -o {{.BIN}} ./cmd/conductor
+
+  run:
+    desc: Build and launch Conductor (opens the desktop window).
+    deps:
+      - build
+    cmds:
+      - ./{{.BIN}}

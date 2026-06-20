@@ -1,0 +1,19 @@
+# Build output
+/build/bin/
+/frontend/dist/
+
+# Wails generated bindings (regenerated on build)
+/frontend/wailsjs/
+
+# Dependencies
+/frontend/node_modules/
+
+# Go
+*.test
+*.out
+coverage.*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

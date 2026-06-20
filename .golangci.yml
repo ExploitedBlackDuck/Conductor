@@ -1,0 +1,53 @@
+# Curated, committed golangci-lint configuration (§2.6). The enabled set is the
+# charter's minimum; depguard enforces the core/shell boundary of ADR-0001.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    - depguard
+    - gocritic
+    - revive
+    - bodyclose
+    - contextcheck
+    - errorlint
+    - nilerr
+    - gosec
+    - sqlclosecheck
+    - rowserrcheck
+  settings:
+    depguard:
+      rules:
+        # Dependencies point inward (§2.1): the headless core, adapters,
+        # platform packages, and the composition root must never import the
+        # desktop shell. Wails is confined to app/ and shell/ (ADR-0001).
+        no-wails-in-core:
+          files:
+            - "**/internal/**"
+            - "**/cmd/**"
+          deny:
+            - pkg: github.com/wailsapp/wails
+              desc: >-
+                core, adapters, platform and main must not import Wails;
+                it is confined to app/ and shell/ (ADR-0001, §2.1)
+  exclusions:
+    rules:
+      # Tests exercise edge cases and use fixtures; the security and
+      # documentation linters add noise without value there.
+      - path: _test\.go
+        linters:
+          - gosec
+          - revive
+          - errcheck
+
+formatters:
+  enable:
+    - gofumpt
