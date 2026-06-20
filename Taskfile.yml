@@ -82,6 +82,38 @@ tasks:
     cmds:
       - CGO_ENABLED=1 CGO_LDFLAGS="{{.MAC_LDFLAGS}}" go build -tags "{{.TAGS}}" -ldflags "-w -s" -o {{.BIN}} .
 
+  rclone:fetch:
+    desc: "Download + verify the pinned rclone into the data dir (ADR-0008, operator-initiated)."
+    vars:
+      # Keep in sync with internal/core/rclonebin.PinnedVersion.
+      VERSION: v1.74.3
+    cmds:
+      - |
+        set -eu
+        VER="{{.VERSION}}"
+        case "$(uname -s)" in
+          Darwin) OS=osx ;;
+          Linux)  OS=linux ;;
+          *) echo "unsupported OS"; exit 1 ;;
+        esac
+        case "$(uname -m)" in
+          arm64|aarch64) ARCH=arm64 ;;
+          x86_64|amd64)  ARCH=amd64 ;;
+          *) echo "unsupported arch"; exit 1 ;;
+        esac
+        if [ "$OS" = osx ]; then DATA="$HOME/Library/Application Support/conductor/data"; else DATA="${XDG_DATA_HOME:-$HOME/.local/share}/conductor"; fi
+        PLAT="$OS-$ARCH"; ZIP="rclone-$VER-$PLAT.zip"
+        TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+        echo "Downloading $ZIP ..."
+        curl -fsSL "https://downloads.rclone.org/$VER/$ZIP" -o "$TMP/$ZIP"
+        curl -fsSL "https://downloads.rclone.org/$VER/SHA256SUMS" -o "$TMP/SHA256SUMS"
+        ( cd "$TMP" && grep " $ZIP\$" SHA256SUMS | shasum -a 256 -c - )
+        ( cd "$TMP" && unzip -qo "$ZIP" )
+        mkdir -p "$DATA/bin"
+        install -m 0755 "$TMP/rclone-$VER-$PLAT/rclone" "$DATA/bin/rclone"
+        echo "Installed verified rclone $VER to $DATA/bin/rclone"
+        "$DATA/bin/rclone" version | head -1
+
   run:
     desc: Build and launch Conductor (opens the desktop window).
     deps:
