@@ -28,6 +28,8 @@ import (
 type RC interface {
 	SyncCopy(ctx context.Context, srcFs, dstFs string, config map[string]any, filter map[string][]string, async bool) (int64, error)
 	SyncMove(ctx context.Context, srcFs, dstFs string, config map[string]any, filter map[string][]string, deleteEmptySrcDirs, async bool) (int64, error)
+	SyncSync(ctx context.Context, srcFs, dstFs string, config map[string]any, filter map[string][]string, async bool) (int64, error)
+	SyncBisync(ctx context.Context, path1, path2 string, resync, dryRun bool, config map[string]any, async bool) (int64, error)
 	JobStop(ctx context.Context, id int64) error
 	JobStatus(ctx context.Context, id int64) (domain.JobStatus, error)
 	CoreStatsForGroup(ctx context.Context, group string) (domain.TransferStats, error)
@@ -118,8 +120,10 @@ func New(cfg Config) *Service {
 // the rc job, records the start in the audit log, and begins watching the job
 // to capture and persist it on completion.
 func (s *Service) Start(ctx context.Context, req RunRequest) (RunHandle, error) {
-	if req.Kind != domain.KindCopy && req.Kind != domain.KindMove {
-		return RunHandle{}, coreerr.New(coreerr.CodeOptionInvalid, "transfers supports copy and move; other kinds arrive in a later phase", nil)
+	switch req.Kind {
+	case domain.KindCopy, domain.KindMove, domain.KindSync, domain.KindBisync:
+	default:
+		return RunHandle{}, coreerr.New(coreerr.CodeOptionInvalid, "unsupported operation kind "+string(req.Kind), nil)
 	}
 
 	built, err := s.cfg.Catalog.Build(req.Selection, req.Kind, req.Ceilings)
@@ -132,7 +136,10 @@ func (s *Service) Start(ctx context.Context, req RunRequest) (RunHandle, error) 
 	impacts := s.cfg.Catalog.Evaluate(options.EvalInput{
 		Selection: req.Selection, Kind: req.Kind, Src: req.Src, Dst: req.Dst, Ceilings: req.Ceilings,
 	})
-	if requiresAck(impacts) && !req.Acknowledged {
+	// A dry-run makes no changes, so it never requires destructive
+	// acknowledgement (§7.4 — dry-run is always one click away).
+	dryRun := selectedBool(req.Selection, "--dry-run")
+	if requiresAck(impacts) && !req.Acknowledged && !dryRun {
 		return RunHandle{}, coreerr.New(coreerr.CodeDestructiveNotConfirmed,
 			"this operation requires explicit acknowledgement before it can run", nil)
 	}
@@ -224,14 +231,27 @@ func (s *Service) Close() {
 }
 
 func (s *Service) startJob(ctx context.Context, rc RC, req RunRequest, built options.Built) (int64, error) {
+	src, dst := req.Src.String(), req.Dst.String()
 	switch req.Kind {
 	case domain.KindCopy:
-		return rc.SyncCopy(ctx, req.Src.String(), req.Dst.String(), built.ConfigParams, built.FilterParams, true)
+		return rc.SyncCopy(ctx, src, dst, built.ConfigParams, built.FilterParams, true)
 	case domain.KindMove:
-		return rc.SyncMove(ctx, req.Src.String(), req.Dst.String(), built.ConfigParams, built.FilterParams, false, true)
+		return rc.SyncMove(ctx, src, dst, built.ConfigParams, built.FilterParams, false, true)
+	case domain.KindSync:
+		return rc.SyncSync(ctx, src, dst, built.ConfigParams, built.FilterParams, true)
+	case domain.KindBisync:
+		resync := selectedBool(req.Selection, "--resync")
+		dryRun := selectedBool(req.Selection, "--dry-run")
+		return rc.SyncBisync(ctx, src, dst, resync, dryRun, built.ConfigParams, true)
 	default:
 		return 0, coreerr.New(coreerr.CodeOptionInvalid, "unsupported transfer kind", nil)
 	}
+}
+
+// selectedBool reports whether a boolean flag is set true in the selection.
+func selectedBool(sel options.Selection, flag string) bool {
+	v := sel.Single[flag]
+	return v == "true" || v == "1"
 }
 
 // watch polls the job until it finishes or the service is shutting down, then

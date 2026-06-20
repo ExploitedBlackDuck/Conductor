@@ -1,5 +1,7 @@
 package domain
 
+import "strings"
+
 // OperationKind enumerates the kinds of operation Conductor can run (§7.1). The
 // kind drives both the rc endpoint used and the impact rules applied.
 type OperationKind string
@@ -44,4 +46,21 @@ func (e Endpoint) String() string {
 		return e.Path
 	}
 	return e.Remote + ":" + e.Path
+}
+
+// ParseEndpoint splits an rclone-style "remote:path" string into an Endpoint. A
+// string with no colon — or whose colon falls after a path separator (a local
+// path that merely contains a colon) — is treated as a local path with no
+// remote. It is the inverse of String for the values Conductor produces.
+func ParseEndpoint(s string) Endpoint {
+	i := strings.IndexByte(s, ':')
+	if i < 0 {
+		return Endpoint{Path: s}
+	}
+	// A separator before the colon means the colon belongs to the path, not a
+	// remote name (e.g. a local path), so there is no remote.
+	if strings.ContainsAny(s[:i], `/\`) {
+		return Endpoint{Path: s}
+	}
+	return Endpoint{Remote: s[:i], Path: s[i+1:]}
 }

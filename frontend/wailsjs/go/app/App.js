@@ -6,12 +6,32 @@ export function CancelRun(arg1) {
   return window['go']['app']['App']['CancelRun'](arg1);
 }
 
+export function DeletePair(arg1) {
+  return window['go']['app']['App']['DeletePair'](arg1);
+}
+
+export function DeleteProfile(arg1) {
+  return window['go']['app']['App']['DeleteProfile'](arg1);
+}
+
 export function GetCatalog() {
   return window['go']['app']['App']['GetCatalog']();
 }
 
+export function ListCeilings() {
+  return window['go']['app']['App']['ListCeilings']();
+}
+
 export function ListMounts() {
   return window['go']['app']['App']['ListMounts']();
+}
+
+export function ListPairs() {
+  return window['go']['app']['App']['ListPairs']();
+}
+
+export function ListProfiles() {
+  return window['go']['app']['App']['ListProfiles']();
 }
 
 export function MountFs(arg1, arg2, arg3) {
@@ -28,6 +48,22 @@ export function OnShutdown(arg1) {
 
 export function PreviewOperation(arg1) {
   return window['go']['app']['App']['PreviewOperation'](arg1);
+}
+
+export function RunPair(arg1, arg2) {
+  return window['go']['app']['App']['RunPair'](arg1, arg2);
+}
+
+export function SavePair(arg1) {
+  return window['go']['app']['App']['SavePair'](arg1);
+}
+
+export function SaveProfile(arg1) {
+  return window['go']['app']['App']['SaveProfile'](arg1);
+}
+
+export function SetCeiling(arg1) {
+  return window['go']['app']['App']['SetCeiling'](arg1);
 }
 
 export function StartRun(arg1, arg2) {

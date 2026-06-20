@@ -23,6 +23,7 @@ import (
 	"github.com/conductor-app/conductor/internal/core/daemon"
 	"github.com/conductor-app/conductor/internal/core/mounts"
 	"github.com/conductor-app/conductor/internal/core/options"
+	"github.com/conductor-app/conductor/internal/core/pairs"
 	"github.com/conductor-app/conductor/internal/core/ports"
 	"github.com/conductor-app/conductor/internal/core/rclonebin"
 	"github.com/conductor-app/conductor/internal/core/secrets"
@@ -32,6 +33,11 @@ import (
 	"github.com/conductor-app/conductor/internal/platform/paths"
 	"github.com/conductor-app/conductor/shell"
 )
+
+// governanceDefaults are Conductor's conservative global bandwidth/concurrency
+// ceilings (ADR-0013): safe by default, with going faster an explicit,
+// per-remote choice. Per-remote ceilings only tighten these further (§7.6).
+var governanceDefaults = options.Ceilings{Transfers: 4, Checkers: 8}
 
 // rcAdapter wraps the rc client to satisfy control.RC, projecting the daemon's
 // job list down to the running job ids the live-stats poller needs. Keeping this
@@ -170,7 +176,19 @@ func run() error {
 		return rcclient.New(addr, creds.User, creds.Pass), nil
 	}, auditSvc)
 
-	application := app.New(logger, buildinfo.Version(), ctrl, catalog, transferSvc, mountSvc)
+	// Saved pairs & profiles run through the transfers service, with governance
+	// ceilings resolved from conservative global defaults plus per-remote caps
+	// (ADR-0013, §7.6). A never-run pair defaults to dry-run (§7.4).
+	pairsSvc := pairs.New(pairs.Config{
+		Store:    store,
+		Runner:   transferSvc,
+		Catalog:  catalog,
+		Audit:    auditSvc,
+		Defaults: governanceDefaults,
+		Clock:    ports.SystemClock{},
+	})
+
+	application := app.New(logger, buildinfo.Version(), ctrl, catalog, transferSvc, mountSvc, pairsSvc)
 
 	return shell.Run(shell.Config{
 		Window: shell.Window{

@@ -27,13 +27,40 @@ type fakeRC struct {
 	polls       int
 	stopped     bool
 	jobErr      bool
+	// started records which start method fired and the bisync flags it carried,
+	// so tests can assert the correct rc endpoint and arguments were used.
+	startedKind  string
+	bisyncResync bool
+	bisyncDryRun bool
 }
 
 func (f *fakeRC) SyncCopy(context.Context, string, string, map[string]any, map[string][]string, bool) (int64, error) {
+	f.mu.Lock()
+	f.startedKind = "copy"
+	f.mu.Unlock()
 	return 7, nil
 }
 
 func (f *fakeRC) SyncMove(context.Context, string, string, map[string]any, map[string][]string, bool, bool) (int64, error) {
+	f.mu.Lock()
+	f.startedKind = "move"
+	f.mu.Unlock()
+	return 7, nil
+}
+
+func (f *fakeRC) SyncSync(context.Context, string, string, map[string]any, map[string][]string, bool) (int64, error) {
+	f.mu.Lock()
+	f.startedKind = "sync"
+	f.mu.Unlock()
+	return 7, nil
+}
+
+func (f *fakeRC) SyncBisync(_ context.Context, _, _ string, resync, dryRun bool, _ map[string]any, _ bool) (int64, error) {
+	f.mu.Lock()
+	f.startedKind = "bisync"
+	f.bisyncResync = resync
+	f.bisyncDryRun = dryRun
+	f.mu.Unlock()
 	return 7, nil
 }
 
@@ -183,6 +210,89 @@ func TestCancelUnknownOperation(t *testing.T) {
 	require.Error(t, err)
 	code, _ := coreerr.CodeOf(err)
 	assert.Equal(t, coreerr.CodeJobCancelled, code)
+}
+
+// helper: a bisync/sync request with the given selection.
+func runReq(kind domain.OperationKind, sel map[string]string, ack bool) RunRequest {
+	return RunRequest{
+		Kind:         kind,
+		Src:          domain.Endpoint{Remote: "a", Path: "x"},
+		Dst:          domain.Endpoint{Remote: "b", Path: "y"},
+		Selection:    options.Selection{Single: sel},
+		Acknowledged: ack,
+	}
+}
+
+// TestSyncRefusedWithoutAcknowledgement is the P7 gate: a sync deletes extra
+// files at the destination and so must not run without explicit acknowledgement.
+func TestSyncRefusedWithoutAcknowledgement(t *testing.T) {
+	t.Parallel()
+	svc := newService(t, &fakeRC{pollsToDone: 1}, &fakeStore{}, &fakeAudit{})
+
+	_, err := svc.Start(context.Background(), runReq(domain.KindSync, nil, false))
+	require.Error(t, err)
+	code, _ := coreerr.CodeOf(err)
+	assert.Equal(t, coreerr.CodeDestructiveNotConfirmed, code)
+}
+
+// TestSyncWithAcknowledgementRuns proves the same sync proceeds once
+// acknowledged, hits the sync/sync endpoint, and records the risk acknowledgement.
+func TestSyncWithAcknowledgementRuns(t *testing.T) {
+	t.Parallel()
+	rc := &fakeRC{pollsToDone: 1}
+	audit := &fakeAudit{}
+	svc := newService(t, rc, &fakeStore{}, audit)
+
+	_, err := svc.Start(context.Background(), runReq(domain.KindSync, nil, true))
+	require.NoError(t, err)
+
+	rc.mu.Lock()
+	assert.Equal(t, "sync", rc.startedKind)
+	rc.mu.Unlock()
+	assert.Contains(t, audit.recorded(), domain.ActionRiskAcknowledged)
+}
+
+// TestBisyncResyncRefusedWithoutAcknowledgement is the P7 gate for the
+// destructive bisync baseline reset: --resync must not run unacknowledged.
+func TestBisyncResyncRefusedWithoutAcknowledgement(t *testing.T) {
+	t.Parallel()
+	svc := newService(t, &fakeRC{pollsToDone: 1}, &fakeStore{}, &fakeAudit{})
+
+	_, err := svc.Start(context.Background(), runReq(domain.KindBisync, map[string]string{"--resync": "true"}, false))
+	require.Error(t, err)
+	code, _ := coreerr.CodeOf(err)
+	assert.Equal(t, coreerr.CodeDestructiveNotConfirmed, code)
+}
+
+// TestDryRunNeedsNoAcknowledgement proves dry-run is always one click away
+// (§7.4): a sync simulated with --dry-run runs without acknowledgement.
+func TestDryRunNeedsNoAcknowledgement(t *testing.T) {
+	t.Parallel()
+	rc := &fakeRC{pollsToDone: 1}
+	svc := newService(t, rc, &fakeStore{}, &fakeAudit{})
+
+	_, err := svc.Start(context.Background(), runReq(domain.KindSync, map[string]string{"--dry-run": "true"}, false))
+	require.NoError(t, err)
+	rc.mu.Lock()
+	assert.Equal(t, "sync", rc.startedKind)
+	rc.mu.Unlock()
+}
+
+// TestBisyncPassesResyncAndDryRunFlags proves the selected --resync/--dry-run
+// booleans reach the sync/bisync rc call.
+func TestBisyncPassesResyncAndDryRunFlags(t *testing.T) {
+	t.Parallel()
+	rc := &fakeRC{pollsToDone: 1}
+	svc := newService(t, rc, &fakeStore{}, &fakeAudit{})
+
+	_, err := svc.Start(context.Background(), runReq(domain.KindBisync, map[string]string{"--resync": "true", "--dry-run": "true"}, true))
+	require.NoError(t, err)
+
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	assert.Equal(t, "bisync", rc.startedKind)
+	assert.True(t, rc.bisyncResync, "--resync must reach sync/bisync")
+	assert.True(t, rc.bisyncDryRun, "--dry-run must reach sync/bisync")
 }
 
 func TestCloseFinalizesActiveRuns(t *testing.T) {

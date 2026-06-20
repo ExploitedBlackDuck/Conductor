@@ -6,9 +6,19 @@ import {shell} from '../models';
 
 export function CancelRun(arg1:string):Promise<app.ErrorDTO>;
 
+export function DeletePair(arg1:string):Promise<app.ErrorDTO>;
+
+export function DeleteProfile(arg1:string):Promise<app.ErrorDTO>;
+
 export function GetCatalog():Promise<app.CatalogDTO>;
 
+export function ListCeilings():Promise<app.CeilingsResultDTO>;
+
 export function ListMounts():Promise<app.MountsResultDTO>;
+
+export function ListPairs():Promise<app.PairsResultDTO>;
+
+export function ListProfiles():Promise<app.ProfilesResultDTO>;
 
 export function MountFs(arg1:string,arg2:string,arg3:string):Promise<app.ErrorDTO>;
 
@@ -17,6 +27,14 @@ export function OnReady(arg1:context.Context,arg2:shell.Runtime):Promise<void>;
 export function OnShutdown(arg1:context.Context):Promise<void>;
 
 export function PreviewOperation(arg1:app.PreviewRequest):Promise<app.PreviewDTO>;
+
+export function RunPair(arg1:string,arg2:boolean):Promise<app.RunResultDTO>;
+
+export function SavePair(arg1:app.PairDTO):Promise<app.ErrorDTO>;
+
+export function SaveProfile(arg1:app.ProfileDTO):Promise<app.ErrorDTO>;
+
+export function SetCeiling(arg1:app.CeilingDTO):Promise<app.ErrorDTO>;
 
 export function StartRun(arg1:app.PreviewRequest,arg2:boolean):Promise<app.RunResultDTO>;
 

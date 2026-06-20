@@ -6,13 +6,15 @@
   import OperationBuilder from "./lib/components/OperationBuilder.svelte";
   import LiveDashboard from "./lib/components/LiveDashboard.svelte";
   import MountsView from "./lib/components/MountsView.svelte";
+  import PairsView from "./lib/components/PairsView.svelte";
 
   // Views land as their phases do; only those that are real are shown.
-  type View = "transfers" | "dashboard" | "mounts" | "status";
+  type View = "transfers" | "dashboard" | "pairs" | "mounts" | "status";
   let view: View = "transfers";
   const nav: { id: View; label: string }[] = [
     { id: "transfers", label: "Transfers" },
     { id: "dashboard", label: "Dashboard" },
+    { id: "pairs", label: "Pairs" },
     { id: "mounts", label: "Mounts" },
     { id: "status", label: "Status" },
   ];
@@ -46,6 +48,8 @@
       <OperationBuilder />
     {:else if view === "dashboard"}
       <LiveDashboard />
+    {:else if view === "pairs"}
+      <PairsView />
     {:else if view === "mounts"}
       <MountsView />
     {:else if view === "status"}

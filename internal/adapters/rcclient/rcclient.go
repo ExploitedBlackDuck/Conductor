@@ -185,6 +185,47 @@ func (c *Client) SyncMove(ctx context.Context, srcFs, dstFs string, config map[s
 	return resp.JobID, nil
 }
 
+// SyncSync starts a sync/sync (one-way mirror that deletes extra files at the
+// destination). See SyncCopy for the parameter semantics.
+func (c *Client) SyncSync(ctx context.Context, srcFs, dstFs string, config map[string]any, filter map[string][]string, async bool) (int64, error) {
+	body := map[string]any{"srcFs": srcFs, "dstFs": dstFs}
+	if len(config) > 0 {
+		body["_config"] = config
+	}
+	if len(filter) > 0 {
+		body["_filter"] = filter
+	}
+	if async {
+		body["_async"] = true
+	}
+	var resp struct {
+		JobID int64 `json:"jobid"`
+	}
+	if err := c.call(ctx, "sync/sync", body, &resp); err != nil {
+		return 0, err
+	}
+	return resp.JobID, nil
+}
+
+// SyncBisync starts a sync/bisync between path1 and path2. resync re-establishes
+// the baseline (destructive); dryRun simulates without changes.
+func (c *Client) SyncBisync(ctx context.Context, path1, path2 string, resync, dryRun bool, config map[string]any, async bool) (int64, error) {
+	body := map[string]any{"path1": path1, "path2": path2, "resync": resync, "dryRun": dryRun}
+	if len(config) > 0 {
+		body["_config"] = config
+	}
+	if async {
+		body["_async"] = true
+	}
+	var resp struct {
+		JobID int64 `json:"jobid"`
+	}
+	if err := c.call(ctx, "sync/bisync", body, &resp); err != nil {
+		return 0, err
+	}
+	return resp.JobID, nil
+}
+
 // JobStop requests cancellation of a running job (job/stop).
 func (c *Client) JobStop(ctx context.Context, id int64) error {
 	return c.call(ctx, "job/stop", map[string]any{"jobid": id}, nil)

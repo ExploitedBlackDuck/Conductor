@@ -270,6 +270,198 @@ export namespace app {
 		}
 	}
 	
+	export class CeilingDTO {
+	    remote: string;
+	    transfers: number;
+	    checkers: number;
+	    bwlimit: string;
+	    tpslimit: number;
+
+	    static createFrom(source: any = {}) {
+	        return new CeilingDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.remote = source["remote"];
+	        this.transfers = source["transfers"];
+	        this.checkers = source["checkers"];
+	        this.bwlimit = source["bwlimit"];
+	        this.tpslimit = source["tpslimit"];
+	    }
+	}
+	export class CeilingsResultDTO {
+	    ceilings: CeilingDTO[];
+	    error?: ErrorDTO;
+
+	    static createFrom(source: any = {}) {
+	        return new CeilingsResultDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ceilings = this.convertValues(source["ceilings"], CeilingDTO);
+	        this.error = this.convertValues(source["error"], ErrorDTO);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PairDTO {
+	    id: string;
+	    name: string;
+	    kind: string;
+	    path1: string;
+	    path2: string;
+	    profileId: string;
+	    lastRun: string;
+	    hasRun: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new PairDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	        this.path1 = source["path1"];
+	        this.path2 = source["path2"];
+	        this.profileId = source["profileId"];
+	        this.lastRun = source["lastRun"];
+	        this.hasRun = source["hasRun"];
+	    }
+	}
+	export class PairsResultDTO {
+	    pairs: PairDTO[];
+	    error?: ErrorDTO;
+
+	    static createFrom(source: any = {}) {
+	        return new PairsResultDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pairs = this.convertValues(source["pairs"], PairDTO);
+	        this.error = this.convertValues(source["error"], ErrorDTO);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ProfileOptionDTO {
+	    flag: string;
+	    value: string;
+
+	    static createFrom(source: any = {}) {
+	        return new ProfileOptionDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.flag = source["flag"];
+	        this.value = source["value"];
+	    }
+	}
+	export class ProfileDTO {
+	    id: string;
+	    name: string;
+	    kind: string;
+	    options: ProfileOptionDTO[];
+
+	    static createFrom(source: any = {}) {
+	        return new ProfileDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	        this.options = this.convertValues(source["options"], ProfileOptionDTO);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ProfilesResultDTO {
+	    profiles: ProfileDTO[];
+	    error?: ErrorDTO;
+
+	    static createFrom(source: any = {}) {
+	        return new ProfilesResultDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.profiles = this.convertValues(source["profiles"], ProfileDTO);
+	        this.error = this.convertValues(source["error"], ErrorDTO);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class PreviewDTO {
 	    kind: string;
 	    resolvedSrc: string;
