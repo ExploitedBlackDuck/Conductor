@@ -1,0 +1,30 @@
+Conductor
+Copyright 2026 The Conductor Authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+--------------------------------------------------------------------------------
+Bundled / supervised third-party software
+--------------------------------------------------------------------------------
+
+rclone
+  Conductor supervises and presents the rclone binary; it does not reimplement
+  rclone. When a build distributes the pinned rclone binary, that binary remains
+  under its own license (rclone is MIT-licensed; verify at the pinned version).
+  Conductor's Apache-2.0 license does not override rclone's license. The pinned
+  version and its license notice are recorded with the release.
+  https://rclone.org  —  https://github.com/rclone/rclone
+
+--------------------------------------------------------------------------------
+Third-party Go modules
+--------------------------------------------------------------------------------
+
+This software depends on third-party Go modules, each under its own license, as
+recorded in go.mod / go.sum. Notable direct dependencies include:
+
+  github.com/wailsapp/wails/v2        MIT
+  github.com/BurntSushi/toml          MIT
+  github.com/stretchr/testify         MIT
+
+A complete, authoritative list of modules and licenses for a given build can be
+produced with `go-licenses` / an SBOM at release time (ADR-0012).
