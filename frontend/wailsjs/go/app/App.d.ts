@@ -4,13 +4,23 @@ import {app} from '../models';
 import {context} from '../models';
 import {shell} from '../models';
 
+export function AuditView():Promise<app.AuditViewDTO>;
+
 export function CancelRun(arg1:string):Promise<app.ErrorDTO>;
+
+export function ClearHistory():Promise<app.ErrorDTO>;
 
 export function DeletePair(arg1:string):Promise<app.ErrorDTO>;
 
 export function DeleteProfile(arg1:string):Promise<app.ErrorDTO>;
 
+export function DestructiveHistory():Promise<app.OperationsResultDTO>;
+
+export function ExportHistory(arg1:string,arg2:string):Promise<app.ExportResultDTO>;
+
 export function GetCatalog():Promise<app.CatalogDTO>;
+
+export function HistoryByRemote(arg1:string):Promise<app.OperationsResultDTO>;
 
 export function ListCeilings():Promise<app.CeilingsResultDTO>;
 
@@ -26,7 +36,11 @@ export function OnReady(arg1:context.Context,arg2:shell.Runtime):Promise<void>;
 
 export function OnShutdown(arg1:context.Context):Promise<void>;
 
+export function OperationDetail(arg1:string):Promise<app.OperationDetailDTO>;
+
 export function PreviewOperation(arg1:app.PreviewRequest):Promise<app.PreviewDTO>;
+
+export function RecentHistory(arg1:number):Promise<app.OperationsResultDTO>;
 
 export function RunPair(arg1:string,arg2:boolean):Promise<app.RunResultDTO>;
 

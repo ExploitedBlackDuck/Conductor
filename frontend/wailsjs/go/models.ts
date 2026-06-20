@@ -462,6 +462,218 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class OperationDTO {
+	    id: string;
+	    kind: string;
+	    src: string;
+	    dst: string;
+	    rcloneVersion: string;
+	    startedAt: string;
+	    endedAt: string;
+	    bytesMoved: number;
+	    filesMoved: number;
+	    result: string;
+	    destructive: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new OperationDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kind = source["kind"];
+	        this.src = source["src"];
+	        this.dst = source["dst"];
+	        this.rcloneVersion = source["rcloneVersion"];
+	        this.startedAt = source["startedAt"];
+	        this.endedAt = source["endedAt"];
+	        this.bytesMoved = source["bytesMoved"];
+	        this.filesMoved = source["filesMoved"];
+	        this.result = source["result"];
+	        this.destructive = source["destructive"];
+	    }
+	}
+	export class OperationOptionDTO {
+	    flag: string;
+	    value: string;
+	    risk: string;
+	    acknowledged: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new OperationOptionDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.flag = source["flag"];
+	        this.value = source["value"];
+	        this.risk = source["risk"];
+	        this.acknowledged = source["acknowledged"];
+	    }
+	}
+	export class OperationsResultDTO {
+	    operations: OperationDTO[];
+	    error?: ErrorDTO;
+
+	    static createFrom(source: any = {}) {
+	        return new OperationsResultDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.operations = this.convertValues(source["operations"], OperationDTO);
+	        this.error = this.convertValues(source["error"], ErrorDTO);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class OperationDetailDTO {
+	    operation: OperationDTO;
+	    options: OperationOptionDTO[];
+	    found: boolean;
+	    error?: ErrorDTO;
+
+	    static createFrom(source: any = {}) {
+	        return new OperationDetailDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.operation = this.convertValues(source["operation"], OperationDTO);
+	        this.options = this.convertValues(source["options"], OperationOptionDTO);
+	        this.found = source["found"];
+	        this.error = this.convertValues(source["error"], ErrorDTO);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AuditEntryDTO {
+	    seq: number;
+	    at: string;
+	    action: string;
+	    subject: string;
+	    detail: string;
+	    hash: string;
+
+	    static createFrom(source: any = {}) {
+	        return new AuditEntryDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.seq = source["seq"];
+	        this.at = source["at"];
+	        this.action = source["action"];
+	        this.subject = source["subject"];
+	        this.detail = source["detail"];
+	        this.hash = source["hash"];
+	    }
+	}
+	export class AuditViewDTO {
+	    entries: AuditEntryDTO[];
+	    intact: boolean;
+	    brokenAtSeq: number;
+	    reason: string;
+	    error?: ErrorDTO;
+
+	    static createFrom(source: any = {}) {
+	        return new AuditViewDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entries = this.convertValues(source["entries"], AuditEntryDTO);
+	        this.intact = source["intact"];
+	        this.brokenAtSeq = source["brokenAtSeq"];
+	        this.reason = source["reason"];
+	        this.error = this.convertValues(source["error"], ErrorDTO);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ExportResultDTO {
+	    filename: string;
+	    base64: string;
+	    error?: ErrorDTO;
+
+	    static createFrom(source: any = {}) {
+	        return new ExportResultDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.filename = source["filename"];
+	        this.base64 = source["base64"];
+	        this.error = this.convertValues(source["error"], ErrorDTO);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class PreviewDTO {
 	    kind: string;
 	    resolvedSrc: string;

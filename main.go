@@ -21,6 +21,7 @@ import (
 	"github.com/conductor-app/conductor/internal/core/audit"
 	"github.com/conductor-app/conductor/internal/core/control"
 	"github.com/conductor-app/conductor/internal/core/daemon"
+	"github.com/conductor-app/conductor/internal/core/history"
 	"github.com/conductor-app/conductor/internal/core/mounts"
 	"github.com/conductor-app/conductor/internal/core/options"
 	"github.com/conductor-app/conductor/internal/core/pairs"
@@ -188,7 +189,11 @@ func run() error {
 		Clock:    ports.SystemClock{},
 	})
 
-	application := app.New(logger, buildinfo.Version(), ctrl, catalog, transferSvc, mountSvc, pairsSvc)
+	// Operation history browsing, queries, and the audited "what was moved"
+	// export over the persisted operations and audit chain (§7.7, §7.11.7).
+	historySvc := history.New(history.Config{Store: store, Audit: auditSvc})
+
+	application := app.New(logger, buildinfo.Version(), ctrl, catalog, transferSvc, mountSvc, pairsSvc, historySvc)
 
 	return shell.Run(shell.Config{
 		Window: shell.Window{

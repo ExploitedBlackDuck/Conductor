@@ -9,6 +9,7 @@ import (
 	"log/slog"
 
 	"github.com/conductor-app/conductor/internal/core/control"
+	"github.com/conductor-app/conductor/internal/core/history"
 	"github.com/conductor-app/conductor/internal/core/mounts"
 	"github.com/conductor-app/conductor/internal/core/options"
 	"github.com/conductor-app/conductor/internal/core/pairs"
@@ -28,12 +29,13 @@ type App struct {
 	transfers *transfers.Service
 	mounts    *mounts.Service
 	pairs     *pairs.Service
+	history   *history.Service
 	stats     *statsEmitter
 }
 
 // New constructs the binding-layer App with its dependencies injected.
-func New(log *slog.Logger, version string, ctrl *control.Service, catalog *options.Catalog, tr *transfers.Service, mt *mounts.Service, pr *pairs.Service) *App {
-	return &App{log: log, version: version, control: ctrl, catalog: catalog, transfers: tr, mounts: mt, pairs: pr}
+func New(log *slog.Logger, version string, ctrl *control.Service, catalog *options.Catalog, tr *transfers.Service, mt *mounts.Service, pr *pairs.Service, hi *history.Service) *App {
+	return &App{log: log, version: version, control: ctrl, catalog: catalog, transfers: tr, mounts: mt, pairs: pr, history: hi}
 }
 
 // OnReady is the shell's startup hook (shell.Config.OnReady). It wires the live

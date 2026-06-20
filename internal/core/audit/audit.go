@@ -45,6 +45,12 @@ func New(store Store, clock ports.Clock) *Service {
 	return &Service{store: store, clock: clock}
 }
 
+// Entries returns the full audit chain in ascending Seq order, for the audit
+// viewer and history exports (§7.11.7–7.11.8).
+func (s *Service) Entries(ctx context.Context) ([]domain.AuditEntry, error) {
+	return s.store.Entries(ctx)
+}
+
 // Record appends an entry for action concerning subject, with detail serialised
 // to canonical JSON. It returns the persisted entry including its chain hash.
 func (s *Service) Record(ctx context.Context, action domain.AuditAction, subject string, detail any) (domain.AuditEntry, error) {
