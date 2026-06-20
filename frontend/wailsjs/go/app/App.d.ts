@@ -4,6 +4,8 @@ import {app} from '../models';
 import {context} from '../models';
 import {shell} from '../models';
 
+export function CancelRun(arg1:string):Promise<app.ErrorDTO>;
+
 export function GetCatalog():Promise<app.CatalogDTO>;
 
 export function OnReady(arg1:context.Context,arg2:shell.Runtime):Promise<void>;
@@ -11,6 +13,8 @@ export function OnReady(arg1:context.Context,arg2:shell.Runtime):Promise<void>;
 export function OnShutdown(arg1:context.Context):Promise<void>;
 
 export function PreviewOperation(arg1:app.PreviewRequest):Promise<app.PreviewDTO>;
+
+export function StartRun(arg1:app.PreviewRequest,arg2:boolean):Promise<app.RunResultDTO>;
 
 export function StatsSnapshot():Promise<app.StatsEventDTO>;
 

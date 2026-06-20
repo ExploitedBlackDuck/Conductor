@@ -10,6 +10,7 @@ import (
 
 	"github.com/conductor-app/conductor/internal/core/control"
 	"github.com/conductor-app/conductor/internal/core/options"
+	"github.com/conductor-app/conductor/internal/core/transfers"
 	"github.com/conductor-app/conductor/shell"
 )
 
@@ -18,16 +19,17 @@ import (
 // from the composition root (§5). Business logic lives in core services; App
 // only adapts calls and maps errors.
 type App struct {
-	log     *slog.Logger
-	version string
-	control *control.Service
-	catalog *options.Catalog
-	stats   *statsEmitter
+	log       *slog.Logger
+	version   string
+	control   *control.Service
+	catalog   *options.Catalog
+	transfers *transfers.Service
+	stats     *statsEmitter
 }
 
 // New constructs the binding-layer App with its dependencies injected.
-func New(log *slog.Logger, version string, ctrl *control.Service, catalog *options.Catalog) *App {
-	return &App{log: log, version: version, control: ctrl, catalog: catalog}
+func New(log *slog.Logger, version string, ctrl *control.Service, catalog *options.Catalog, tr *transfers.Service) *App {
+	return &App{log: log, version: version, control: ctrl, catalog: catalog, transfers: tr}
 }
 
 // OnReady is the shell's startup hook (shell.Config.OnReady). It wires the live
@@ -57,6 +59,9 @@ func (a *App) StatsSnapshot() StatsEventDTO {
 // rcd is orphaned when the window closes (§2.3).
 func (a *App) OnShutdown(ctx context.Context) {
 	a.log.InfoContext(ctx, "shutting down")
+	// Finalize in-flight operations before the daemon goes away, then stop the
+	// daemon's supervision and poll loop.
+	a.transfers.Close()
 	if err := a.control.Stop(ctx); err != nil {
 		a.log.ErrorContext(ctx, "error stopping daemon", "error", err)
 	}

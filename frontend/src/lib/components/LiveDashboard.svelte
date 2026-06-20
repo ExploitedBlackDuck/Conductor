@@ -1,11 +1,8 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
   import { run } from "../stores/run";
   import { humanBytes, humanRate } from "../format";
 
-  onMount(() => void run.start());
-  onDestroy(() => run.stop());
-
+  // The run store is started globally in App; this view only reads it.
   $: stats = $run;
   $: pct = stats && stats.totalBytes > 0 ? Math.min(100, Math.round((stats.bytes / stats.totalBytes) * 100)) : 0;
   function eta(s: number | undefined): string {

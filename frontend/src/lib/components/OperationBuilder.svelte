@@ -6,6 +6,7 @@
   import OptionBuilder from "./OptionBuilder.svelte";
   import CommandPreview from "./CommandPreview.svelte";
   import ImpactPanel from "./ImpactPanel.svelte";
+  import RunControls from "./RunControls.svelte";
 
   const previewStore = builder.preview;
   onMount(() => void loadCatalog());
@@ -33,6 +34,9 @@
     <section class="card sticky">
       <h2>Resolved operation</h2>
       <CommandPreview preview={$previewStore} />
+      <div class="run">
+        <RunControls preview={$previewStore} />
+      </div>
     </section>
     <section class="card">
       <h2>Impact</h2>
@@ -71,6 +75,11 @@
   .sticky {
     position: sticky;
     top: var(--space-4);
+  }
+  .run {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
   }
   .version {
     margin: 0 0 var(--space-3);

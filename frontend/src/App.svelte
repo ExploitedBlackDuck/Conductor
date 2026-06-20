@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { status } from "./lib/stores/status";
+  import { run } from "./lib/stores/run";
   import StatusPanel from "./lib/components/StatusPanel.svelte";
   import OperationBuilder from "./lib/components/OperationBuilder.svelte";
   import LiveDashboard from "./lib/components/LiveDashboard.svelte";
@@ -14,8 +15,14 @@
     { id: "status", label: "Status" },
   ];
 
-  onMount(() => status.start(1000));
-  onDestroy(() => status.stop());
+  onMount(() => {
+    status.start(1000);
+    void run.start();
+  });
+  onDestroy(() => {
+    status.stop();
+    run.stop();
+  });
 </script>
 
 <div class="app">

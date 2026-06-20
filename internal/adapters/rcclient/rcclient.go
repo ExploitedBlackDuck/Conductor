@@ -129,6 +129,43 @@ func (c *Client) SyncCopy(ctx context.Context, srcFs, dstFs string, config map[s
 	return resp.JobID, nil
 }
 
+// SyncMove starts a sync/move on the daemon. See SyncCopy for the parameter
+// semantics; deleteEmptySrcDirs removes emptied source directories.
+func (c *Client) SyncMove(ctx context.Context, srcFs, dstFs string, config map[string]any, filter map[string][]string, deleteEmptySrcDirs, async bool) (int64, error) {
+	body := map[string]any{"srcFs": srcFs, "dstFs": dstFs, "deleteEmptySrcDirs": deleteEmptySrcDirs}
+	if len(config) > 0 {
+		body["_config"] = config
+	}
+	if len(filter) > 0 {
+		body["_filter"] = filter
+	}
+	if async {
+		body["_async"] = true
+	}
+	var resp struct {
+		JobID int64 `json:"jobid"`
+	}
+	if err := c.call(ctx, "sync/move", body, &resp); err != nil {
+		return 0, err
+	}
+	return resp.JobID, nil
+}
+
+// JobStop requests cancellation of a running job (job/stop).
+func (c *Client) JobStop(ctx context.Context, id int64) error {
+	return c.call(ctx, "job/stop", map[string]any{"jobid": id}, nil)
+}
+
+// CoreStatsForGroup fetches stats scoped to a single job's stats group
+// (core/stats with a group filter), used to capture a finished job's totals.
+func (c *Client) CoreStatsForGroup(ctx context.Context, group string) (domain.TransferStats, error) {
+	var resp coreStatsResponse
+	if err := c.call(ctx, "core/stats", map[string]any{"group": group}, &resp); err != nil {
+		return domain.TransferStats{}, err
+	}
+	return resp.toDomain(), nil
+}
+
 // JobStatus fetches the status of a single job (job/status).
 func (c *Client) JobStatus(ctx context.Context, id int64) (domain.JobStatus, error) {
 	var resp jobStatusResponse

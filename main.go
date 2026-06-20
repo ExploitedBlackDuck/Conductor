@@ -13,13 +13,19 @@ import (
 
 	"github.com/conductor-app/conductor/app"
 	"github.com/conductor-app/conductor/frontend"
+	"github.com/conductor-app/conductor/internal/adapters/keyring"
 	"github.com/conductor-app/conductor/internal/adapters/procrunner"
 	"github.com/conductor-app/conductor/internal/adapters/rcclient"
 	"github.com/conductor-app/conductor/internal/adapters/sqlitestore"
 	"github.com/conductor-app/conductor/internal/buildinfo"
+	"github.com/conductor-app/conductor/internal/core/audit"
 	"github.com/conductor-app/conductor/internal/core/control"
 	"github.com/conductor-app/conductor/internal/core/daemon"
 	"github.com/conductor-app/conductor/internal/core/options"
+	"github.com/conductor-app/conductor/internal/core/ports"
+	"github.com/conductor-app/conductor/internal/core/rclonebin"
+	"github.com/conductor-app/conductor/internal/core/secrets"
+	"github.com/conductor-app/conductor/internal/core/transfers"
 	"github.com/conductor-app/conductor/internal/platform/config"
 	"github.com/conductor-app/conductor/internal/platform/logging"
 	"github.com/conductor-app/conductor/internal/platform/paths"
@@ -114,7 +120,44 @@ func run() error {
 		return fmt.Errorf("loading option catalog: %w", err)
 	}
 
-	application := app.New(logger, buildinfo.Version(), ctrl, catalog)
+	// Secrets foundation (ADR-0009): the per-install data key from the OS
+	// keyring drives the AEAD that seals captured logs at rest.
+	secretStore := keyring.New()
+	dataKey, err := secrets.LoadOrCreateDataKey(ctx, secretStore)
+	if err != nil {
+		return fmt.Errorf("loading data key: %w", err)
+	}
+	sealer, err := secrets.NewSealer(dataKey)
+	if err != nil {
+		return fmt.Errorf("initialising sealer: %w", err)
+	}
+
+	auditSvc := audit.New(store, ports.SystemClock{})
+
+	// Transfers run through the rc daemon; the provider builds an rc client
+	// bound to the live session when a run starts.
+	transferRC := func() (transfers.RC, error) {
+		addr, err := supervisor.Addr()
+		if err != nil {
+			return nil, err
+		}
+		creds, err := supervisor.Credentials()
+		if err != nil {
+			return nil, err
+		}
+		return rcclient.New(addr, creds.User, creds.Pass), nil
+	}
+	transferSvc := transfers.New(transfers.Config{
+		RC:      transferRC,
+		Store:   store,
+		Audit:   auditSvc,
+		Sealer:  sealer,
+		Catalog: catalog,
+		Version: rclonebin.PinnedVersion,
+		Logger:  logger,
+	})
+
+	application := app.New(logger, buildinfo.Version(), ctrl, catalog, transferSvc)
 
 	return shell.Run(shell.Config{
 		Window: shell.Window{
