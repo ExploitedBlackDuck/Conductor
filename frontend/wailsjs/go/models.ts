@@ -181,6 +181,28 @@ export namespace app {
 	        this.retryable = source["retryable"];
 	    }
 	}
+	export class FileProgressDTO {
+	    name: string;
+	    bytes: number;
+	    size: number;
+	    speed: number;
+	    percentage: number;
+	    etaSeconds?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FileProgressDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.bytes = source["bytes"];
+	        this.size = source["size"];
+	        this.speed = source["speed"];
+	        this.percentage = source["percentage"];
+	        this.etaSeconds = source["etaSeconds"];
+	    }
+	}
 	export class ImpactDTO {
 	    level: string;
 	    flag: string;
@@ -270,6 +292,52 @@ export namespace app {
 	        this.ceilings = this.convertValues(source["ceilings"], CeilingsDTO);
 	        this.src = this.convertValues(source["src"], EndpointDTO);
 	        this.dst = this.convertValues(source["dst"], EndpointDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class StatsEventDTO {
+	    bytes: number;
+	    totalBytes: number;
+	    speed: number;
+	    errors: number;
+	    checks: number;
+	    transfers: number;
+	    etaSeconds?: number;
+	    activeJobs: number;
+	    transferring: FileProgressDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new StatsEventDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.bytes = source["bytes"];
+	        this.totalBytes = source["totalBytes"];
+	        this.speed = source["speed"];
+	        this.errors = source["errors"];
+	        this.checks = source["checks"];
+	        this.transfers = source["transfers"];
+	        this.etaSeconds = source["etaSeconds"];
+	        this.activeJobs = source["activeJobs"];
+	        this.transferring = this.convertValues(source["transferring"], FileProgressDTO);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

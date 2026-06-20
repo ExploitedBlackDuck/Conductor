@@ -105,6 +105,30 @@ func (c *Client) JobList(ctx context.Context) (JobList, error) {
 	}, nil
 }
 
+// SyncCopy starts a sync/copy on the daemon. config populates the rc _config
+// block and filter the _filter block (both may be nil). When async is true the
+// daemon runs the job in the background and the returned id is its job id;
+// otherwise the call blocks until completion and returns 0.
+func (c *Client) SyncCopy(ctx context.Context, srcFs, dstFs string, config map[string]any, filter map[string][]string, async bool) (int64, error) {
+	body := map[string]any{"srcFs": srcFs, "dstFs": dstFs}
+	if len(config) > 0 {
+		body["_config"] = config
+	}
+	if len(filter) > 0 {
+		body["_filter"] = filter
+	}
+	if async {
+		body["_async"] = true
+	}
+	var resp struct {
+		JobID int64 `json:"jobid"`
+	}
+	if err := c.call(ctx, "sync/copy", body, &resp); err != nil {
+		return 0, err
+	}
+	return resp.JobID, nil
+}
+
 // JobStatus fetches the status of a single job (job/status).
 func (c *Client) JobStatus(ctx context.Context, id int64) (domain.JobStatus, error) {
 	var resp jobStatusResponse

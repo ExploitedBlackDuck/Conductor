@@ -3,12 +3,14 @@
   import { status } from "./lib/stores/status";
   import StatusPanel from "./lib/components/StatusPanel.svelte";
   import OperationBuilder from "./lib/components/OperationBuilder.svelte";
+  import LiveDashboard from "./lib/components/LiveDashboard.svelte";
 
   // Views land as their phases do; only those that are real are shown.
-  type View = "transfers" | "status";
+  type View = "transfers" | "dashboard" | "status";
   let view: View = "transfers";
   const nav: { id: View; label: string }[] = [
     { id: "transfers", label: "Transfers" },
+    { id: "dashboard", label: "Dashboard" },
     { id: "status", label: "Status" },
   ];
 
@@ -33,6 +35,8 @@
   <main class="content">
     {#if view === "transfers"}
       <OperationBuilder />
+    {:else if view === "dashboard"}
+      <LiveDashboard />
     {:else if view === "status"}
       <StatusPanel />
     {/if}

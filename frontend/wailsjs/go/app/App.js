@@ -18,6 +18,10 @@ export function PreviewOperation(arg1) {
   return window['go']['app']['App']['PreviewOperation'](arg1);
 }
 
+export function StatsSnapshot() {
+  return window['go']['app']['App']['StatsSnapshot']();
+}
+
 export function Status() {
   return window['go']['app']['App']['Status']();
 }

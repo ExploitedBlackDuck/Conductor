@@ -1,0 +1,25 @@
+{
+	"bytes": 24117248,
+	"checks": 0,
+	"deletes": 0,
+	"elapsedTime": 6.012,
+	"errors": 0,
+	"eta": 10,
+	"fatalError": false,
+	"speed": 4194304,
+	"totalBytes": 67108864,
+	"totalTransfers": 1,
+	"transfers": 0,
+	"transferring": [
+		{
+			"name": "big.bin",
+			"size": 67108864,
+			"bytes": 24117248,
+			"speed": 4194304,
+			"speedAvg": 4100000,
+			"percentage": 35,
+			"eta": 10,
+			"group": "job/1"
+		}
+	]
+}

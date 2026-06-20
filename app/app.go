@@ -22,6 +22,7 @@ type App struct {
 	version string
 	control *control.Service
 	catalog *options.Catalog
+	stats   *statsEmitter
 }
 
 // New constructs the binding-layer App with its dependencies injected.
@@ -29,18 +30,27 @@ func New(log *slog.Logger, version string, ctrl *control.Service, catalog *optio
 	return &App{log: log, version: version, control: ctrl, catalog: catalog}
 }
 
-// OnReady is the shell's startup hook (shell.Config.OnReady). It starts the
-// supervised daemon in the background so the window paints immediately; a
-// startup failure surfaces as a degraded Status rather than blocking the UI
-// (§7.11.9).
-func (a *App) OnReady(ctx context.Context, _ shell.Runtime) {
+// OnReady is the shell's startup hook (shell.Config.OnReady). It wires the live
+// event emitter to the runtime and starts the supervised daemon (and its
+// poll loop) in the background so the window paints immediately; a startup
+// failure surfaces as a degraded Status rather than blocking the UI (§7.11.9).
+func (a *App) OnReady(ctx context.Context, rt shell.Runtime) {
 	a.log.InfoContext(ctx, "frontend ready", "version", a.version)
+	a.stats = &statsEmitter{rt: rt}
 	go func() {
-		// control.Start records its own error; the daemon's own supervision
-		// goroutine is the long-lived owner. This goroutine exits when Start
-		// returns.
-		_ = a.control.Start(ctx)
+		// control.Start records its own error and owns the supervision and poll
+		// goroutines. This goroutine exits when Start returns.
+		_ = a.control.Start(ctx, a.stats)
 	}()
+}
+
+// StatsSnapshot returns the most recent live stats snapshot. The frontend uses
+// it for an initial value; subsequent updates arrive via EventStatsUpdate.
+func (a *App) StatsSnapshot() StatsEventDTO {
+	if a.stats == nil {
+		return StatsEventDTO{}
+	}
+	return a.stats.snapshot()
 }
 
 // OnShutdown is the shell's shutdown hook. It stops the daemon cleanly so no

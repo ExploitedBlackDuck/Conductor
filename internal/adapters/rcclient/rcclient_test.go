@@ -82,6 +82,23 @@ func TestCoreStatsActive(t *testing.T) {
 	assert.Equal(t, int64(1), stats.Transfers)
 }
 
+func TestCoreStatsTransferring(t *testing.T) {
+	t.Parallel()
+	srv := fixtureServer(t, map[string]string{"core/stats": "core_stats_transferring.json"})
+	c := clientFor(t, srv)
+
+	stats, err := c.CoreStats(context.Background())
+	require.NoError(t, err)
+	require.Len(t, stats.Transferring, 1)
+	f := stats.Transferring[0]
+	assert.Equal(t, "big.bin", f.Name)
+	assert.Equal(t, int64(24117248), f.Bytes)
+	assert.Equal(t, int64(67108864), f.Size)
+	assert.Equal(t, 35, f.Percentage)
+	require.NotNil(t, stats.ETASeconds)
+	assert.InDelta(t, 10, *stats.ETASeconds, 0.001)
+}
+
 func TestConfigListRemotes(t *testing.T) {
 	t.Parallel()
 	srv := fixtureServer(t, map[string]string{"config/listremotes": "config_listremotes.json"})

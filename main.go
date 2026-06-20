@@ -26,6 +26,23 @@ import (
 	"github.com/conductor-app/conductor/shell"
 )
 
+// rcAdapter wraps the rc client to satisfy control.RC, projecting the daemon's
+// job list down to the running job ids the live-stats poller needs. Keeping this
+// projection in the composition root keeps the rc adapter and the core service
+// free of each other's types.
+type rcAdapter struct {
+	*rcclient.Client
+}
+
+// RunningJobIDs returns the currently-running rc job ids.
+func (a rcAdapter) RunningJobIDs(ctx context.Context) ([]int64, error) {
+	jobs, err := a.JobList(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return jobs.RunningIDs, nil
+}
+
 func main() {
 	if err := run(); err != nil {
 		// main is the only place a fatal startup error terminates the process;
@@ -88,7 +105,7 @@ func run() error {
 		return fmt.Errorf("configuring daemon supervisor: %w", err)
 	}
 	ctrl := control.New(supervisor, func(addr, user, pass string) control.RC {
-		return rcclient.New(addr, user, pass)
+		return rcAdapter{rcclient.New(addr, user, pass)}
 	}, logger)
 
 	// Load the embedded option catalog for the pinned rclone (ADR-0011).

@@ -12,6 +12,7 @@ import (
 
 	"github.com/conductor-app/conductor/internal/core/daemon"
 	"github.com/conductor-app/conductor/internal/core/domain"
+	"github.com/conductor-app/conductor/internal/core/livestats"
 )
 
 type fakeDaemon struct {
@@ -59,6 +60,13 @@ func (f *fakeRC) CoreStats(context.Context) (domain.TransferStats, error) {
 	return f.stats, f.statsErr
 }
 
+func (f *fakeRC) RunningJobIDs(context.Context) ([]int64, error) { return nil, nil }
+
+// noopEmitter discards live-stats snapshots.
+type noopEmitter struct{}
+
+func (noopEmitter) EmitStats(livestats.Snapshot) {}
+
 func quietLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
 func TestStartThenStatusReportsRemotesAndStats(t *testing.T) {
@@ -67,7 +75,8 @@ func TestStartThenStatusReportsRemotesAndStats(t *testing.T) {
 	rc := &fakeRC{remotes: []string{"example-s3"}, stats: domain.TransferStats{Bytes: 42}}
 	svc := New(d, func(string, string, string) RC { return rc }, quietLogger())
 
-	require.NoError(t, svc.Start(context.Background()))
+	require.NoError(t, svc.Start(context.Background(), noopEmitter{}))
+	t.Cleanup(func() { _ = svc.Stop(context.Background()) })
 
 	st := svc.Status(context.Background())
 	assert.True(t, st.DaemonRunning)
@@ -82,7 +91,7 @@ func TestStartFailureSurfacesInStatus(t *testing.T) {
 	d := &fakeDaemon{startErr: startErr}
 	svc := New(d, func(string, string, string) RC { return &fakeRC{} }, quietLogger())
 
-	require.Error(t, svc.Start(context.Background()))
+	require.Error(t, svc.Start(context.Background(), noopEmitter{}))
 
 	st := svc.Status(context.Background())
 	assert.False(t, st.DaemonRunning)
@@ -95,7 +104,8 @@ func TestDaemonUpButRCErrorReportsDegraded(t *testing.T) {
 	rc := &fakeRC{remotesErr: errors.New("connection refused")}
 	svc := New(d, func(string, string, string) RC { return rc }, quietLogger())
 
-	require.NoError(t, svc.Start(context.Background()))
+	require.NoError(t, svc.Start(context.Background(), noopEmitter{}))
+	t.Cleanup(func() { _ = svc.Stop(context.Background()) })
 
 	st := svc.Status(context.Background())
 	assert.True(t, st.DaemonRunning)

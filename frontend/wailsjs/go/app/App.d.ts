@@ -12,6 +12,8 @@ export function OnShutdown(arg1:context.Context):Promise<void>;
 
 export function PreviewOperation(arg1:app.PreviewRequest):Promise<app.PreviewDTO>;
 
+export function StatsSnapshot():Promise<app.StatsEventDTO>;
+
 export function Status():Promise<app.StatusDTO>;
 
 export function Version():Promise<string>;
