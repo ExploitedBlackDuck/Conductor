@@ -1,0 +1,6 @@
+{
+	"remotes": [
+		"example-local",
+		"example-mem"
+	]
+}

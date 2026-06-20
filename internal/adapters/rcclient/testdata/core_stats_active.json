@@ -1,0 +1,23 @@
+{
+	"bytes": 67108864,
+	"checks": 0,
+	"deletedDirs": 0,
+	"deletes": 0,
+	"elapsedTime": 1.512,
+	"errors": 0,
+	"eta": null,
+	"fatalError": false,
+	"listed": 1,
+	"renames": 0,
+	"retryError": false,
+	"serverSideCopies": 1,
+	"serverSideCopyBytes": 67108864,
+	"serverSideMoveBytes": 0,
+	"serverSideMoves": 0,
+	"speed": 0,
+	"totalBytes": 67108864,
+	"totalChecks": 0,
+	"totalTransfers": 1,
+	"transferTime": 0.138988792,
+	"transfers": 1
+}
