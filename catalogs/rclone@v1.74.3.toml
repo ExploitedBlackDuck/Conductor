@@ -1,0 +1,326 @@
+# Conductor rclone option catalog (ADR-0011), curated for the pinned rclone
+# version. Each option is typed metadata: how it is rendered, validated, mapped
+# to rc parameters / argv, and how risky it is. The drift guard test
+# (options_drift_integration_test.go) asserts every flag here is a real flag of
+# the pinned binary. This is Conductor's *curated* exposure: it may be stricter
+# than rclone (e.g. requires/conflicts that encode safe-by-default policy).
+rclone_version = "v1.74.3"
+
+# ── Performance & governance ────────────────────────────────────────────────
+
+[[option]]
+flag = "--transfers"
+type = "int"
+default = "4"
+category = "performance"
+summary = "Number of file transfers to run in parallel"
+description = "How many files to transfer simultaneously. Higher values can be faster but increase load on the remote and may trip provider rate limits."
+risk = "passive"
+affects_data = false
+rc_param = "Transfers"
+rc_section = "config"
+governed = "transfers"
+
+[[option]]
+flag = "--checkers"
+type = "int"
+default = "8"
+category = "performance"
+summary = "Number of checkers to run in parallel"
+description = "How many file comparisons to run simultaneously when deciding what to transfer."
+risk = "passive"
+affects_data = false
+rc_param = "Checkers"
+rc_section = "config"
+governed = "checkers"
+
+[[option]]
+flag = "--bwlimit"
+type = "size"
+default = "off"
+category = "performance"
+summary = "Bandwidth limit, e.g. 10M"
+description = "Caps transfer bandwidth. With no limit a transfer can saturate your link."
+risk = "passive"
+affects_data = false
+rc_param = "BwLimit"
+rc_section = "config"
+governed = "bwlimit"
+
+[[option]]
+flag = "--tpslimit"
+type = "int"
+default = "0"
+category = "performance"
+summary = "Limit transactions per second to the remote"
+description = "Caps API transactions per second, useful for rate-limited object stores. 0 means unlimited."
+risk = "passive"
+affects_data = false
+rc_param = "TPSLimit"
+rc_section = "config"
+governed = "tpslimit"
+
+[[option]]
+flag = "--multi-thread-streams"
+type = "int"
+default = "4"
+category = "performance"
+summary = "Number of streams to use for multi-thread downloads"
+description = "Splits large file downloads into this many parallel streams."
+risk = "passive"
+affects_data = false
+rc_param = "MultiThreadStreams"
+rc_section = "config"
+
+[[option]]
+flag = "--buffer-size"
+type = "size"
+default = "16Mi"
+category = "performance"
+summary = "In-memory buffer size per transfer"
+description = "Memory buffered ahead per transfer. Larger buffers use more RAM."
+risk = "passive"
+affects_data = false
+rc_param = "BufferSize"
+rc_section = "config"
+
+# ── Checking & change detection ─────────────────────────────────────────────
+
+[[option]]
+flag = "--checksum"
+type = "bool"
+default = "false"
+category = "checking"
+summary = "Compare by checksum, not modification time and size"
+description = "Use checksums to decide what to transfer. Stronger but slower; requires checksums on both sides."
+risk = "passive"
+affects_data = false
+conflicts_with = ["--size-only"]
+rc_param = "CheckSum"
+rc_section = "config"
+
+[[option]]
+flag = "--size-only"
+type = "bool"
+default = "false"
+category = "checking"
+summary = "Compare by size only, ignoring modification time and checksum"
+description = "Skips files whose size matches, regardless of content changes. Weakens change detection and may skip modified files."
+risk = "mutating"
+affects_data = false
+conflicts_with = ["--checksum"]
+rc_param = "SizeOnly"
+rc_section = "config"
+
+[[option]]
+flag = "--ignore-existing"
+type = "bool"
+default = "false"
+category = "checking"
+summary = "Skip all files that exist at the destination"
+description = "Never updates files already present at the destination, even if the source changed."
+risk = "mutating"
+affects_data = false
+rc_param = "IgnoreExisting"
+rc_section = "config"
+
+[[option]]
+flag = "--no-check-dest"
+type = "bool"
+default = "false"
+category = "checking"
+summary = "Do not check the destination, always transfer"
+description = "Skips checking the destination and transfers every source file. Can overwrite newer destination files."
+risk = "mutating"
+affects_data = false
+rc_param = "NoCheckDest"
+rc_section = "config"
+
+[[option]]
+flag = "--no-traverse"
+type = "bool"
+default = "false"
+category = "checking"
+summary = "Do not traverse the destination filesystem"
+description = "Looks up only the source files at the destination instead of listing it. Faster for few files but changes which files are considered."
+risk = "mutating"
+affects_data = false
+rc_param = "NoTraverse"
+rc_section = "config"
+
+[[option]]
+flag = "--update"
+type = "bool"
+default = "false"
+category = "checking"
+summary = "Skip files that are newer at the destination"
+description = "Does not overwrite a destination file that is newer than the source."
+risk = "mutating"
+affects_data = false
+rc_param = "UpdateOlder"
+rc_section = "config"
+
+[[option]]
+flag = "--immutable"
+type = "bool"
+default = "false"
+category = "checking"
+summary = "Do not modify files, fail if a change is needed"
+description = "Treats existing files as immutable; an attempted modification is an error rather than an overwrite."
+risk = "passive"
+affects_data = false
+rc_param = "Immutable"
+rc_section = "config"
+
+# ── Deletion (destructive) ──────────────────────────────────────────────────
+
+[[option]]
+flag = "--delete-before"
+type = "bool"
+default = "false"
+category = "deletion"
+summary = "Delete extra destination files before transferring"
+description = "Deletes destination files not present at the source BEFORE copying. Destructive."
+risk = "destructive"
+affects_data = true
+conflicts_with = ["--delete-during", "--delete-after"]
+rc_section = ""
+
+[[option]]
+flag = "--delete-during"
+type = "bool"
+default = "false"
+category = "deletion"
+summary = "Delete extra destination files during transfer"
+description = "Deletes destination files not present at the source DURING the transfer. Destructive."
+risk = "destructive"
+affects_data = true
+conflicts_with = ["--delete-before", "--delete-after"]
+rc_section = ""
+
+[[option]]
+flag = "--delete-after"
+type = "bool"
+default = "false"
+category = "deletion"
+summary = "Delete extra destination files after transferring"
+description = "Deletes destination files not present at the source AFTER copying. Destructive."
+risk = "destructive"
+affects_data = true
+conflicts_with = ["--delete-before", "--delete-during"]
+rc_section = ""
+
+[[option]]
+flag = "--delete-excluded"
+type = "bool"
+default = "false"
+category = "deletion"
+summary = "Delete files at the destination excluded by filters"
+description = "Also deletes files at the destination that your filters exclude. Destructive and easy to misjudge; review filters first."
+risk = "destructive"
+affects_data = true
+rc_param = "DeleteExcluded"
+rc_section = "config"
+
+[[option]]
+flag = "--backup-dir"
+type = "string"
+default = ""
+category = "deletion"
+summary = "Move overwritten and deleted files into this directory"
+description = "Instead of deleting or overwriting in place, moves affected files into a backup directory. Makes destructive runs recoverable."
+risk = "mutating"
+affects_data = false
+rc_param = "BackupDir"
+rc_section = "config"
+
+[[option]]
+flag = "--suffix"
+type = "string"
+default = ""
+category = "deletion"
+summary = "Suffix appended to overwritten/deleted files in the backup dir"
+description = "Adds a suffix to files moved aside. Conductor only exposes this together with a backup directory."
+risk = "mutating"
+affects_data = false
+requires = ["--backup-dir"]
+rc_param = "Suffix"
+rc_section = "config"
+
+# ── Filters ─────────────────────────────────────────────────────────────────
+
+[[option]]
+flag = "--include"
+type = "list"
+default = ""
+category = "filters"
+summary = "Include files matching the pattern"
+description = "Only transfer files matching these patterns. Verify the pattern matches the intended set; preview before running."
+risk = "mutating"
+affects_data = false
+rc_param = "IncludeRule"
+rc_section = "filter"
+
+[[option]]
+flag = "--exclude"
+type = "list"
+default = ""
+category = "filters"
+summary = "Exclude files matching the pattern"
+description = "Skip files matching these patterns. Verify the pattern matches the intended set; preview before running."
+risk = "mutating"
+affects_data = false
+rc_param = "ExcludeRule"
+rc_section = "filter"
+
+[[option]]
+flag = "--max-size"
+type = "size"
+default = "off"
+category = "filters"
+summary = "Only transfer files smaller than this size"
+description = "Skips files larger than the given size."
+risk = "mutating"
+affects_data = false
+rc_param = "MaxSize"
+rc_section = "filter"
+
+[[option]]
+flag = "--min-size"
+type = "size"
+default = "off"
+category = "filters"
+summary = "Only transfer files larger than this size"
+description = "Skips files smaller than the given size."
+risk = "mutating"
+affects_data = false
+rc_param = "MinSize"
+rc_section = "filter"
+
+# ── Output ──────────────────────────────────────────────────────────────────
+
+[[option]]
+flag = "--dry-run"
+type = "bool"
+default = "false"
+category = "output"
+summary = "Do a trial run with no changes made"
+description = "Simulates the operation and reports what would happen without moving or deleting anything. One click away on every sync/bisync (§7.4)."
+risk = "passive"
+affects_data = false
+rc_param = "DryRun"
+rc_section = "config"
+
+# ── Bisync ──────────────────────────────────────────────────────────────────
+
+[[option]]
+flag = "--resync"
+type = "bool"
+default = "false"
+category = "bisync"
+summary = "Re-establish the bisync baseline (overwrites both sides as needed)"
+description = "Resync re-establishes the baseline between the two paths and can overwrite files on both sides. Back up first."
+risk = "destructive"
+affects_data = true
+kinds = ["bisync"]
+rc_section = ""

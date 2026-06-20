@@ -9,6 +9,7 @@ import (
 	"log/slog"
 
 	"github.com/conductor-app/conductor/internal/core/control"
+	"github.com/conductor-app/conductor/internal/core/options"
 	"github.com/conductor-app/conductor/shell"
 )
 
@@ -20,11 +21,12 @@ type App struct {
 	log     *slog.Logger
 	version string
 	control *control.Service
+	catalog *options.Catalog
 }
 
 // New constructs the binding-layer App with its dependencies injected.
-func New(log *slog.Logger, version string, ctrl *control.Service) *App {
-	return &App{log: log, version: version, control: ctrl}
+func New(log *slog.Logger, version string, ctrl *control.Service, catalog *options.Catalog) *App {
+	return &App{log: log, version: version, control: ctrl, catalog: catalog}
 }
 
 // OnReady is the shell's startup hook (shell.Config.OnReady). It starts the

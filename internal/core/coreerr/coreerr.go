@@ -20,6 +20,7 @@ const (
 	CodeRcloneChecksum          Code = "ERR_RCLONE_BINARY_CHECKSUM"
 	CodeRCRequest               Code = "ERR_RC_REQUEST"
 	CodeOptionConflict          Code = "ERR_OPTION_CONFLICT"
+	CodeOptionInvalid           Code = "ERR_OPTION_INVALID"
 	CodeOptionOverCeiling       Code = "ERR_OPTION_OVER_CEILING"
 	CodeDestructiveNotConfirmed Code = "ERR_DESTRUCTIVE_NOT_CONFIRMED"
 	CodeJobCancelled            Code = "ERR_JOB_CANCELLED"

@@ -19,6 +19,7 @@ import (
 	"github.com/conductor-app/conductor/internal/buildinfo"
 	"github.com/conductor-app/conductor/internal/core/control"
 	"github.com/conductor-app/conductor/internal/core/daemon"
+	"github.com/conductor-app/conductor/internal/core/options"
 	"github.com/conductor-app/conductor/internal/platform/config"
 	"github.com/conductor-app/conductor/internal/platform/logging"
 	"github.com/conductor-app/conductor/internal/platform/paths"
@@ -90,7 +91,13 @@ func run() error {
 		return rcclient.New(addr, user, pass)
 	}, logger)
 
-	application := app.New(logger, buildinfo.Version(), ctrl)
+	// Load the embedded option catalog for the pinned rclone (ADR-0011).
+	catalog, err := options.Load()
+	if err != nil {
+		return fmt.Errorf("loading option catalog: %w", err)
+	}
+
+	application := app.New(logger, buildinfo.Version(), ctrl, catalog)
 
 	return shell.Run(shell.Config{
 		Window: shell.Window{
