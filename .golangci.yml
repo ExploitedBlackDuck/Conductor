@@ -28,11 +28,12 @@ linters:
       rules:
         # Dependencies point inward (§2.1): the headless core, adapters,
         # platform packages, and the composition root must never import the
-        # desktop shell. Wails is confined to app/ and shell/ (ADR-0001).
-        no-wails-in-core:
+        # desktop shell. Wails is confined to app/ and shell/ (ADR-0001,
+        # ADR-0014). The rule applies to every file except those two packages.
+        no-wails-outside-shell:
           files:
-            - "**/internal/**"
-            - "**/cmd/**"
+            - "!**/app/**"
+            - "!**/shell/**"
           deny:
             - pkg: github.com/wailsapp/wails
               desc: >-

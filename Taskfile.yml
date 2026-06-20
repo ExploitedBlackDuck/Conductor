@@ -49,6 +49,13 @@ tasks:
     cmds:
       - npm ci
 
+  bindings:
+    desc: Regenerate the committed typed Wails frontend bindings (§2.8) when bound Go types change.
+    deps:
+      - frontend:build
+    cmds:
+      - wails generate module
+
   frontend:check:
     desc: Type-check the frontend (svelte-check / strict TS).
     dir: frontend
@@ -73,7 +80,7 @@ tasks:
       TAGS: 'desktop,production{{if eq OS "linux"}},webkit2_41{{end}}'
       MAC_LDFLAGS: '{{if eq OS "darwin"}}-framework UniformTypeIdentifiers{{end}}'
     cmds:
-      - CGO_ENABLED=1 CGO_LDFLAGS="{{.MAC_LDFLAGS}}" go build -tags "{{.TAGS}}" -ldflags "-w -s" -o {{.BIN}} ./cmd/conductor
+      - CGO_ENABLED=1 CGO_LDFLAGS="{{.MAC_LDFLAGS}}" go build -tags "{{.TAGS}}" -ldflags "-w -s" -o {{.BIN}} .
 
   run:
     desc: Build and launch Conductor (opens the desktop window).

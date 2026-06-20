@@ -21,6 +21,18 @@ import (
 type Config struct {
 	Log    Log    `toml:"log"`
 	Window Window `toml:"window"`
+	Rclone Rclone `toml:"rclone"`
+}
+
+// Rclone configures how Conductor locates the pinned rclone binary and its
+// configuration (ADR-0008). Empty paths resolve to documented defaults.
+type Rclone struct {
+	// BinaryPath is the absolute path to the pinned rclone binary; empty
+	// resolves to <data dir>/bin/rclone.
+	BinaryPath string `toml:"binary_path"`
+	// ConfigPath optionally points rclone at a specific rclone.conf; empty uses
+	// rclone's own default location.
+	ConfigPath string `toml:"config_path"`
 }
 
 // Log configures the operational logger (§2.4).

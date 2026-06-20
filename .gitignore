@@ -2,8 +2,8 @@
 /build/bin/
 /frontend/dist/
 
-# Wails generated bindings (regenerated on build)
-/frontend/wailsjs/
+# Generated, committed Wails bindings live in frontend/wailsjs (see ADR-0014 /
+# §2.8); they are reviewed when regenerated via `task bindings`.
 
 # Dependencies
 /frontend/node_modules/

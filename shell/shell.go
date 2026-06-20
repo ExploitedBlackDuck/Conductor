@@ -46,6 +46,9 @@ type Config struct {
 	// OnReady is invoked once the webview is initialised, with a Runtime bound
 	// to the live application context. It is the application's startup hook.
 	OnReady func(ctx context.Context, rt Runtime)
+	// OnShutdown is invoked as the window closes, before the process exits, so
+	// the application can stop the daemon and close the store cleanly.
+	OnShutdown func(ctx context.Context)
 	// Bind lists the structs whose exported methods are exposed to the frontend
 	// as generated typed bindings (§2.8).
 	Bind []any
@@ -72,6 +75,11 @@ func Run(cfg Config) error {
 		OnStartup: func(ctx context.Context) {
 			if cfg.OnReady != nil {
 				cfg.OnReady(ctx, &wailsRuntime{ctx: ctx})
+			}
+		},
+		OnShutdown: func(ctx context.Context) {
+			if cfg.OnShutdown != nil {
+				cfg.OnShutdown(ctx)
 			}
 		},
 		Bind: cfg.Bind,

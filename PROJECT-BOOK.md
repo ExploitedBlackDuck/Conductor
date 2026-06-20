@@ -188,7 +188,7 @@ XDG-style resolver:
 
 ```
 conductor/
-├── cmd/conductor/main.go     # composition root: build deps, wire, run. Thin.
+├── main.go                   # composition root: build deps, wire, run. Thin. (ADR-0014: at repo root for Wails tooling)
 ├── app/                      # Wails binding layer (only place importing wails)
 │   ├── app.go
 │   ├── events.go             # typed event names + emit helpers

@@ -20,3 +20,4 @@ amend the book — see `CONTRIBUTING.md`.
 | [0011](0011-typed-option-catalog-with-impact-warnings.md) | Typed option catalog with impact warnings |
 | [0012](0012-signed-macos-reproducible-linux.md) | Signed macOS, reproducible Linux packaging |
 | [0013](0013-bandwidth-concurrency-governance.md) | Bandwidth/concurrency governance |
+| [0014](0014-composition-root-at-repo-root.md) | Composition root at the repo root (Wails tooling) |
