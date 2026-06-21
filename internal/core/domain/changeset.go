@@ -1,5 +1,7 @@
 package domain
 
+import "time"
+
 // ChangeKind classifies one entry in a dry-run change set (ADR-0015).
 type ChangeKind string
 
@@ -42,6 +44,23 @@ type ChangeSet struct {
 	// Truncated reports that Creates/Updates list fewer entries than their counts
 	// (Deletes are always complete).
 	Truncated bool
+}
+
+// ChangeSetRecord is a change set persisted as evidence of what a destructive
+// operation's operator was shown and acknowledged (ADR-0015, §7.7). The counts
+// are stored in the clear for querying; the path lists are AEAD-sealed before
+// insert (ADR-0009), exactly like a captured log — they may name real files.
+type ChangeSetRecord struct {
+	OperationID     string
+	CreateCount     int
+	UpdateCount     int
+	DeleteCount     int
+	Truncated       bool
+	AcknowledgedAt  time.Time
+	Nonce           []byte
+	SealedBytes     []byte
+	SHA256Plaintext string
+	BytesLen        int
 }
 
 // HasDeletes reports whether the operation would delete any data — the property

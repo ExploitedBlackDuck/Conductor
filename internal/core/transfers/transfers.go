@@ -41,6 +41,9 @@ type Provider func() (RC, error)
 // Store persists completed operations (the consumer-defined port, §2.1).
 type Store interface {
 	InsertOperation(ctx context.Context, op domain.Operation, opts []domain.OperationOption, log *domain.CapturedLog) error
+	// InsertChangeSet persists the sealed dry-run change set a destructive
+	// operation was confirmed against (ADR-0015).
+	InsertChangeSet(ctx context.Context, cs domain.ChangeSetRecord) error
 }
 
 // Auditor records audit entries.
@@ -113,6 +116,9 @@ type run struct {
 	opts      []domain.OperationOption
 	cancel    context.CancelFunc
 	cancelled bool
+	// changeSet is the dry-run preview the operator acknowledged, persisted
+	// (sealed) on completion as evidence (ADR-0015).
+	changeSet *domain.ChangeSet
 }
 
 // New constructs the Service, applying defaults.
@@ -226,7 +232,11 @@ func (s *Service) Start(ctx context.Context, req RunRequest) (RunHandle, error) 
 		StartedAt:     startedAt,
 		Result:        domain.ResultRunning,
 	}
-	r := &run{op: op, jobID: jobID, group: fmt.Sprintf("job/%d", jobID), opts: toOperationOptions(built.Effective, req.Acknowledged)}
+	r := &run{
+		op: op, jobID: jobID, group: fmt.Sprintf("job/%d", jobID),
+		opts:      toOperationOptions(built.Effective, req.Acknowledged),
+		changeSet: req.ShownChangeSet,
+	}
 
 	// The watcher must outlive this Start call's ctx: the run continues after
 	// Start returns, and Close (not the request) owns its shutdown (§2.3).
@@ -365,6 +375,7 @@ func (s *Service) finalize(ctx context.Context, r *run, stopping bool) {
 	if err := s.cfg.Store.InsertOperation(ctx, r.op, r.opts, captured); err != nil {
 		s.cfg.Logger.Error("finalize: persisting operation failed", "op", r.op.ID, "error", err)
 	}
+	s.persistChangeSet(ctx, r)
 	if _, err := s.cfg.Audit.Record(ctx, domain.ActionOperationStop, r.op.ID, map[string]any{
 		"result": r.op.Result, "bytes": r.op.BytesMoved, "files": r.op.FilesMoved,
 	}); err != nil {
@@ -372,6 +383,50 @@ func (s *Service) finalize(ctx context.Context, r *run, stopping bool) {
 	}
 
 	s.remove(r.op.ID)
+}
+
+// persistChangeSet seals the acknowledged dry-run change set's path lists and
+// stores it as evidence linked to the operation (ADR-0015, §7.7). The counts go
+// in the clear; the paths — which may name real files — are sealed at rest
+// (ADR-0009). A failure is logged, not fatal: the operation is already recorded.
+func (s *Service) persistChangeSet(ctx context.Context, r *run) {
+	cs := r.changeSet
+	if cs == nil {
+		return
+	}
+	payload := map[string]any{
+		"creates": pathsOf(cs.Creates),
+		"updates": pathsOf(cs.Updates),
+		"deletes": pathsOf(cs.Deletes),
+	}
+	plaintext, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	sealed, err := s.cfg.Sealer.Seal(plaintext, []byte(r.op.ID))
+	if err != nil {
+		s.cfg.Logger.Error("finalize: sealing change set failed", "op", r.op.ID, "error", err)
+		return
+	}
+	sum := sha256.Sum256(plaintext)
+	if err := s.cfg.Store.InsertChangeSet(ctx, domain.ChangeSetRecord{
+		OperationID: r.op.ID,
+		CreateCount: cs.CreateCount, UpdateCount: cs.UpdateCount, DeleteCount: cs.DeleteCount,
+		Truncated: cs.Truncated, AcknowledgedAt: r.op.StartedAt,
+		Nonce: sealed.Nonce, SealedBytes: sealed.Ciphertext,
+		SHA256Plaintext: hex.EncodeToString(sum[:]), BytesLen: len(plaintext),
+	}); err != nil {
+		s.cfg.Logger.Error("finalize: persisting change set failed", "op", r.op.ID, "error", err)
+	}
+}
+
+// pathsOf extracts the paths from a slice of file changes.
+func pathsOf(changes []domain.FileChange) []string {
+	out := make([]string, 0, len(changes))
+	for _, c := range changes {
+		out = append(out, c.Path)
+	}
+	return out
 }
 
 func (s *Service) sealLog(r *run, stats domain.TransferStats, status domain.JobStatus, statsErr, statusErr error) *domain.CapturedLog {

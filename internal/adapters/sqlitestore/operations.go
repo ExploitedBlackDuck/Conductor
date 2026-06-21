@@ -68,6 +68,51 @@ func (s *Store) InsertOperation(ctx context.Context, op domain.Operation, opts [
 	return nil
 }
 
+// InsertChangeSet persists the sealed dry-run change set an operation was
+// confirmed against (ADR-0015). The path lists are already sealed by the caller
+// (ADR-0009); the store never sees them in the clear. One row per operation.
+func (s *Store) InsertChangeSet(ctx context.Context, cs domain.ChangeSetRecord) error {
+	if _, err := s.db.ExecContext(
+		ctx,
+		`INSERT INTO change_sets
+		 (operation_id, create_count, update_count, delete_count, truncated,
+		  acknowledged_at, nonce, sealed_bytes, sha256_plaintext, bytes_len)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		cs.OperationID, cs.CreateCount, cs.UpdateCount, cs.DeleteCount, cs.Truncated,
+		cs.AcknowledgedAt.UTC().Format(timeLayout), cs.Nonce, cs.SealedBytes, cs.SHA256Plaintext, cs.BytesLen,
+	); err != nil {
+		return fmt.Errorf("inserting change set for %s: %w", cs.OperationID, err)
+	}
+	return nil
+}
+
+// ChangeSetFor returns the sealed change set persisted for an operation, if any.
+// The bool is false when the operation has no recorded change set.
+func (s *Store) ChangeSetFor(ctx context.Context, operationID string) (domain.ChangeSetRecord, bool, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT operation_id, create_count, update_count, delete_count, truncated,
+		        acknowledged_at, nonce, sealed_bytes, sha256_plaintext, bytes_len
+		 FROM change_sets WHERE operation_id = ?`, operationID)
+	var (
+		cs    domain.ChangeSetRecord
+		ackAt string
+	)
+	err := row.Scan(&cs.OperationID, &cs.CreateCount, &cs.UpdateCount, &cs.DeleteCount, &cs.Truncated,
+		&ackAt, &cs.Nonce, &cs.SealedBytes, &cs.SHA256Plaintext, &cs.BytesLen)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.ChangeSetRecord{}, false, nil
+	}
+	if err != nil {
+		return domain.ChangeSetRecord{}, false, fmt.Errorf("reading change set for %s: %w", operationID, err)
+	}
+	at, err := time.Parse(timeLayout, ackAt)
+	if err != nil {
+		return domain.ChangeSetRecord{}, false, fmt.Errorf("parsing acknowledged_at %q: %w", ackAt, err)
+	}
+	cs.AcknowledgedAt = at
+	return cs, true, nil
+}
+
 // OperationByID returns one operation and its options. The bool is false when no
 // operation with that id exists.
 func (s *Store) OperationByID(ctx context.Context, id string) (domain.Operation, []domain.OperationOption, bool, error) {

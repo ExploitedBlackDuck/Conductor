@@ -83,11 +83,12 @@ func (f *fakeRC) CoreStatsForGroup(context.Context, string) (domain.TransferStat
 	return domain.TransferStats{Bytes: 2048, Transfers: 2}, nil
 }
 
-// fakeStore records inserted operations.
+// fakeStore records inserted operations and change sets.
 type fakeStore struct {
-	mu  sync.Mutex
-	ops []domain.Operation
-	log *domain.CapturedLog
+	mu         sync.Mutex
+	ops        []domain.Operation
+	log        *domain.CapturedLog
+	changeSets []domain.ChangeSetRecord
 }
 
 func (s *fakeStore) InsertOperation(_ context.Context, op domain.Operation, _ []domain.OperationOption, log *domain.CapturedLog) error {
@@ -96,6 +97,22 @@ func (s *fakeStore) InsertOperation(_ context.Context, op domain.Operation, _ []
 	s.ops = append(s.ops, op)
 	s.log = log
 	return nil
+}
+
+func (s *fakeStore) InsertChangeSet(_ context.Context, cs domain.ChangeSetRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.changeSets = append(s.changeSets, cs)
+	return nil
+}
+
+func (s *fakeStore) lastChangeSet() (domain.ChangeSetRecord, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.changeSets) == 0 {
+		return domain.ChangeSetRecord{}, false
+	}
+	return s.changeSets[len(s.changeSets)-1], true
 }
 
 func (s *fakeStore) last() (domain.Operation, *domain.CapturedLog, bool) {
@@ -267,7 +284,8 @@ func TestSyncWithAcknowledgedPreviewRuns(t *testing.T) {
 	t.Parallel()
 	rc := &fakeRC{pollsToDone: 1}
 	audit := &fakeAudit{}
-	svc := newService(t, rc, &fakeStore{}, audit)
+	store := &fakeStore{}
+	svc := newService(t, rc, store, audit)
 
 	req := runReq(domain.KindSync, nil, true)
 	req.ShownChangeSet = previewed()
@@ -278,6 +296,13 @@ func TestSyncWithAcknowledgedPreviewRuns(t *testing.T) {
 	assert.Equal(t, "sync", rc.startedKind)
 	rc.mu.Unlock()
 	assert.Contains(t, audit.recorded(), domain.ActionRiskAcknowledged)
+
+	// The acknowledged change set is sealed and persisted as evidence (ADR-0015).
+	require.Eventually(t, func() bool { _, ok := store.lastChangeSet(); return ok }, 2*time.Second, 2*time.Millisecond)
+	rec, _ := store.lastChangeSet()
+	assert.Equal(t, 1, rec.DeleteCount)
+	assert.NotEmpty(t, rec.SealedBytes)
+	assert.NotEmpty(t, rec.Nonce)
 }
 
 // TestBisyncResyncRefusedWithoutPreview is the ADR-0015 gate for the destructive

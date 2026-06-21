@@ -87,6 +87,9 @@ func (s *Store) ClearHistory(ctx context.Context) (int64, error) {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM log_blobs`); err != nil {
 		return 0, fmt.Errorf("clearing log blobs: %w", err)
 	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM change_sets`); err != nil {
+		return 0, fmt.Errorf("clearing change sets: %w", err)
+	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM operation_options`); err != nil {
 		return 0, fmt.Errorf("clearing operation options: %w", err)
 	}
