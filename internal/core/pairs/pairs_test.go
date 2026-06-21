@@ -81,10 +81,16 @@ func (m *memStore) SetCeiling(_ context.Context, c domain.RemoteCeiling) error {
 	return nil
 }
 
-// fakeRunner captures the request it was asked to start.
+// fakeRunner captures the request it was asked to start and records previews.
 type fakeRunner struct {
-	last    transfers.RunRequest
-	started int
+	last      transfers.RunRequest
+	started   int
+	previewed int
+}
+
+func (f *fakeRunner) Preview(_ context.Context, _ transfers.RunRequest) (domain.ChangeSet, error) {
+	f.previewed++
+	return domain.ChangeSet{DeleteCount: 1, Deletes: []domain.FileChange{{Kind: domain.ChangeDelete, Path: "x"}}}, nil
 }
 
 func (f *fakeRunner) Start(_ context.Context, req transfers.RunRequest) (transfers.RunHandle, error) {
@@ -155,6 +161,34 @@ func TestRunPairAfterFirstRunIsLive(t *testing.T) {
 
 	assert.NotEqual(t, "true", runner.last.Selection.Single["--dry-run"],
 		"a previously-run pair is not forced to dry-run")
+}
+
+// TestLivePairRunIsPreviewed proves a live (already-run) destructive pair run is
+// previewed and carries the change set into the run, satisfying the ADR-0015
+// gate; a first-run dry-run is not previewed.
+func TestLivePairRunIsPreviewed(t *testing.T) {
+	t.Parallel()
+	store := newMemStore()
+	store.pairs["pair-1"] = domain.SavedPair{
+		ID: "pair-1", Name: "mirror", Kind: domain.PairSync, Path1: "/a", Path2: "s3:b",
+		LastRun: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC), // already run -> live
+	}
+	runner := &fakeRunner{}
+	svc := newService(t, store, runner, nil)
+
+	_, err := svc.Run(context.Background(), "pair-1", true)
+	require.NoError(t, err)
+	assert.Equal(t, 1, runner.previewed, "a live destructive run is previewed")
+	require.NotNil(t, runner.last.ShownChangeSet, "the change set is carried into the run")
+	assert.Equal(t, 1, runner.last.ShownChangeSet.DeleteCount)
+
+	// A brand-new pair runs as a forced dry-run and is not previewed.
+	store.pairs["pair-2"] = domain.SavedPair{ID: "pair-2", Name: "new", Kind: domain.PairSync, Path1: "/x", Path2: "/y"}
+	runner2 := &fakeRunner{}
+	svc2 := newService(t, store, runner2, nil)
+	_, err = svc2.Run(context.Background(), "pair-2", false)
+	require.NoError(t, err)
+	assert.Equal(t, 0, runner2.previewed, "a first-run dry-run needs no preview")
 }
 
 // TestRunAppliesProfileAndResolvesCeilings proves profile options become the

@@ -26,6 +26,7 @@ import (
 	"github.com/conductor-app/conductor/internal/core/options"
 	"github.com/conductor-app/conductor/internal/core/pairs"
 	"github.com/conductor-app/conductor/internal/core/ports"
+	"github.com/conductor-app/conductor/internal/core/preview"
 	"github.com/conductor-app/conductor/internal/core/rclonebin"
 	"github.com/conductor-app/conductor/internal/core/secrets"
 	"github.com/conductor-app/conductor/internal/core/transfers"
@@ -142,6 +143,14 @@ func run() error {
 
 	auditSvc := audit.New(store, ports.SystemClock{})
 
+	// The destructive-op preview gate (ADR-0015) runs the pinned rclone with
+	// --dry-run as a sanctioned one-shot subprocess and parses the change set.
+	previewSvc := preview.New(preview.Config{
+		BinaryPath: binaryPath,
+		ConfigPath: cfg.Rclone.ConfigPath,
+		Runner:     procrunner.New(),
+	})
+
 	// Transfers run through the rc daemon; the provider builds an rc client
 	// bound to the live session when a run starts.
 	transferRC := func() (transfers.RC, error) {
@@ -156,13 +165,14 @@ func run() error {
 		return rcclient.New(addr, creds.User, creds.Pass), nil
 	}
 	transferSvc := transfers.New(transfers.Config{
-		RC:      transferRC,
-		Store:   store,
-		Audit:   auditSvc,
-		Sealer:  sealer,
-		Catalog: catalog,
-		Version: rclonebin.PinnedVersion,
-		Logger:  logger,
+		RC:        transferRC,
+		Store:     store,
+		Audit:     auditSvc,
+		Sealer:    sealer,
+		Previewer: previewSvc,
+		Catalog:   catalog,
+		Version:   rclonebin.PinnedVersion,
+		Logger:    logger,
 	})
 
 	mountSvc := mounts.New(func() (mounts.RC, error) {

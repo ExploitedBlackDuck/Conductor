@@ -223,27 +223,55 @@ func runReq(kind domain.OperationKind, sel map[string]string, ack bool) RunReque
 	}
 }
 
-// TestSyncRefusedWithoutAcknowledgement is the P7 gate: a sync deletes extra
-// files at the destination and so must not run without explicit acknowledgement.
-func TestSyncRefusedWithoutAcknowledgement(t *testing.T) {
+// previewed is a sample shown change set with a delete, standing in for the
+// dry-run preview the operator confirmed against (ADR-0015).
+func previewed() *domain.ChangeSet {
+	return &domain.ChangeSet{
+		Deletes:     []domain.FileChange{{Kind: domain.ChangeDelete, Path: "gone.txt"}},
+		CreateCount: 1, DeleteCount: 1,
+		Creates: []domain.FileChange{{Kind: domain.ChangeCreate, Path: "new.txt"}},
+	}
+}
+
+// TestDestructiveRefusedWithoutPreview is the ADR-0015 gate: a destructive sync
+// must not run until it has been previewed with a dry-run change set — even if
+// the operator tries to acknowledge in the abstract.
+func TestDestructiveRefusedWithoutPreview(t *testing.T) {
 	t.Parallel()
 	svc := newService(t, &fakeRC{pollsToDone: 1}, &fakeStore{}, &fakeAudit{})
 
-	_, err := svc.Start(context.Background(), runReq(domain.KindSync, nil, false))
+	req := runReq(domain.KindSync, nil, true) // acknowledged, but never previewed
+	_, err := svc.Start(context.Background(), req)
+	require.Error(t, err)
+	code, _ := coreerr.CodeOf(err)
+	assert.Equal(t, coreerr.CodeDryRunPreviewRequired, code)
+}
+
+// TestDestructiveRefusedWithoutAckAfterPreview proves that a shown change set is
+// necessary but not sufficient: the operator must still acknowledge it.
+func TestDestructiveRefusedWithoutAckAfterPreview(t *testing.T) {
+	t.Parallel()
+	svc := newService(t, &fakeRC{pollsToDone: 1}, &fakeStore{}, &fakeAudit{})
+
+	req := runReq(domain.KindSync, nil, false)
+	req.ShownChangeSet = previewed()
+	_, err := svc.Start(context.Background(), req)
 	require.Error(t, err)
 	code, _ := coreerr.CodeOf(err)
 	assert.Equal(t, coreerr.CodeDestructiveNotConfirmed, code)
 }
 
-// TestSyncWithAcknowledgementRuns proves the same sync proceeds once
-// acknowledged, hits the sync/sync endpoint, and records the risk acknowledgement.
-func TestSyncWithAcknowledgementRuns(t *testing.T) {
+// TestSyncWithAcknowledgedPreviewRuns proves the sync proceeds once previewed
+// and acknowledged, hits the sync/sync endpoint, and records the risk ack.
+func TestSyncWithAcknowledgedPreviewRuns(t *testing.T) {
 	t.Parallel()
 	rc := &fakeRC{pollsToDone: 1}
 	audit := &fakeAudit{}
 	svc := newService(t, rc, &fakeStore{}, audit)
 
-	_, err := svc.Start(context.Background(), runReq(domain.KindSync, nil, true))
+	req := runReq(domain.KindSync, nil, true)
+	req.ShownChangeSet = previewed()
+	_, err := svc.Start(context.Background(), req)
 	require.NoError(t, err)
 
 	rc.mu.Lock()
@@ -252,16 +280,16 @@ func TestSyncWithAcknowledgementRuns(t *testing.T) {
 	assert.Contains(t, audit.recorded(), domain.ActionRiskAcknowledged)
 }
 
-// TestBisyncResyncRefusedWithoutAcknowledgement is the P7 gate for the
-// destructive bisync baseline reset: --resync must not run unacknowledged.
-func TestBisyncResyncRefusedWithoutAcknowledgement(t *testing.T) {
+// TestBisyncResyncRefusedWithoutPreview is the ADR-0015 gate for the destructive
+// bisync baseline reset: --resync must not run until previewed.
+func TestBisyncResyncRefusedWithoutPreview(t *testing.T) {
 	t.Parallel()
 	svc := newService(t, &fakeRC{pollsToDone: 1}, &fakeStore{}, &fakeAudit{})
 
-	_, err := svc.Start(context.Background(), runReq(domain.KindBisync, map[string]string{"--resync": "true"}, false))
+	_, err := svc.Start(context.Background(), runReq(domain.KindBisync, map[string]string{"--resync": "true"}, true))
 	require.Error(t, err)
 	code, _ := coreerr.CodeOf(err)
-	assert.Equal(t, coreerr.CodeDestructiveNotConfirmed, code)
+	assert.Equal(t, coreerr.CodeDryRunPreviewRequired, code)
 }
 
 // TestDryRunNeedsNoAcknowledgement proves dry-run is always one click away
@@ -293,6 +321,48 @@ func TestBisyncPassesResyncAndDryRunFlags(t *testing.T) {
 	assert.Equal(t, "bisync", rc.startedKind)
 	assert.True(t, rc.bisyncResync, "--resync must reach sync/bisync")
 	assert.True(t, rc.bisyncDryRun, "--dry-run must reach sync/bisync")
+}
+
+// fakePreviewer returns a canned change set and records the kind it saw.
+type fakePreviewer struct {
+	cs   domain.ChangeSet
+	kind domain.OperationKind
+}
+
+func (p *fakePreviewer) Preview(_ context.Context, kind domain.OperationKind, _, _ domain.Endpoint, _ options.Built) (domain.ChangeSet, error) {
+	p.kind = kind
+	return p.cs, nil
+}
+
+// TestPreviewRunsThroughPreviewer proves the service validates the selection and
+// delegates the dry-run to the previewer, returning its change set (ADR-0015).
+func TestPreviewRunsThroughPreviewer(t *testing.T) {
+	t.Parallel()
+	cat, err := options.Load()
+	require.NoError(t, err)
+	pv := &fakePreviewer{cs: *previewed()}
+	svc := New(Config{
+		RC:        func() (RC, error) { return &fakeRC{}, nil },
+		Catalog:   cat,
+		Previewer: pv,
+		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+
+	cs, err := svc.Preview(context.Background(), runReq(domain.KindSync, nil, false))
+	require.NoError(t, err)
+	assert.Equal(t, 1, cs.DeleteCount)
+	assert.Equal(t, domain.KindSync, pv.kind)
+}
+
+// TestPreviewUnavailableIsCoded proves a missing previewer is a typed failure,
+// never a silent skip of the gate.
+func TestPreviewUnavailableIsCoded(t *testing.T) {
+	t.Parallel()
+	svc := newService(t, &fakeRC{}, &fakeStore{}, &fakeAudit{}) // no previewer
+	_, err := svc.Preview(context.Background(), runReq(domain.KindSync, nil, false))
+	require.Error(t, err)
+	code, _ := coreerr.CodeOf(err)
+	assert.Equal(t, coreerr.CodeDryRunPreviewFailed, code)
 }
 
 func TestCloseFinalizesActiveRuns(t *testing.T) {

@@ -53,14 +53,26 @@ type Sealer interface {
 	Seal(plaintext, additionalData []byte) (secrets.Sealed, error)
 }
 
+// Previewer runs an operation's dry-run and returns the parsed change set
+// (ADR-0015), satisfied by the preview service.
+type Previewer interface {
+	Preview(ctx context.Context, kind domain.OperationKind, src, dst domain.Endpoint, built options.Built) (domain.ChangeSet, error)
+}
+
 // RunRequest describes an operation to run.
 type RunRequest struct {
-	Kind         domain.OperationKind
-	Src          domain.Endpoint
-	Dst          domain.Endpoint
-	Selection    options.Selection
-	Ceilings     options.Ceilings
+	Kind      domain.OperationKind
+	Src       domain.Endpoint
+	Dst       domain.Endpoint
+	Selection options.Selection
+	Ceilings  options.Ceilings
+	// Acknowledged records that the operator confirmed a destructive operation.
 	Acknowledged bool
+	// ShownChangeSet is the parsed dry-run preview the operator was shown and
+	// confirmed against (ADR-0015). A destructive run is refused unless this is
+	// present and Acknowledged is set — the confirm is gated on a concrete change
+	// set, not an abstract warning (§7.4).
+	ShownChangeSet *domain.ChangeSet
 }
 
 // RunHandle identifies a started operation.
@@ -75,6 +87,7 @@ type Config struct {
 	Store     Store
 	Audit     Auditor
 	Sealer    Sealer
+	Previewer Previewer
 	Catalog   *options.Catalog
 	Version   string
 	Logger    *slog.Logger
@@ -116,6 +129,22 @@ func New(cfg Config) *Service {
 	return &Service{cfg: cfg, active: map[string]*run{}}
 }
 
+// Preview builds the operation's validated command and runs its dry-run,
+// returning the change set the UI shows before a destructive confirm (ADR-0015).
+// The same validation as Start is applied, so an invalid selection fails here
+// rather than after the operator has confirmed.
+func (s *Service) Preview(ctx context.Context, req RunRequest) (domain.ChangeSet, error) {
+	if s.cfg.Previewer == nil {
+		return domain.ChangeSet{}, coreerr.New(coreerr.CodeDryRunPreviewFailed,
+			"dry-run preview is not available", nil)
+	}
+	built, err := s.cfg.Catalog.Build(req.Selection, req.Kind, req.Ceilings)
+	if err != nil {
+		return domain.ChangeSet{}, err
+	}
+	return s.cfg.Previewer.Preview(ctx, req.Kind, req.Src, req.Dst, built)
+}
+
 // Start validates the selection, enforces destructive acknowledgement, starts
 // the rc job, records the start in the audit log, and begins watching the job
 // to capture and persist it on completion.
@@ -139,9 +168,18 @@ func (s *Service) Start(ctx context.Context, req RunRequest) (RunHandle, error) 
 	// A dry-run makes no changes, so it never requires destructive
 	// acknowledgement (§7.4 — dry-run is always one click away).
 	dryRun := selectedBool(req.Selection, "--dry-run")
-	if requiresAck(impacts) && !req.Acknowledged && !dryRun {
-		return RunHandle{}, coreerr.New(coreerr.CodeDestructiveNotConfirmed,
-			"this operation requires explicit acknowledgement before it can run", nil)
+	if requiresAck(impacts) && !dryRun {
+		// ADR-0015: the confirm is gated on a shown dry-run change set, not just a
+		// boolean. Refuse a destructive run that was never previewed, then refuse
+		// one that was previewed but not acknowledged.
+		if req.ShownChangeSet == nil {
+			return RunHandle{}, coreerr.New(coreerr.CodeDryRunPreviewRequired,
+				"this operation must be previewed with a dry-run before it can run", nil)
+		}
+		if !req.Acknowledged {
+			return RunHandle{}, coreerr.New(coreerr.CodeDestructiveNotConfirmed,
+				"this operation requires explicit acknowledgement of the previewed changes before it can run", nil)
+		}
 	}
 
 	rc, err := s.cfg.RC()
@@ -159,7 +197,16 @@ func (s *Service) Start(ctx context.Context, req RunRequest) (RunHandle, error) 
 		return RunHandle{}, fmt.Errorf("recording operation start: %w", err)
 	}
 	if req.Acknowledged && requiresAck(impacts) {
-		if _, err := s.cfg.Audit.Record(ctx, domain.ActionRiskAcknowledged, opID, map[string]any{"kind": req.Kind}); err != nil {
+		// Hash-chain the shape of the change set the operator confirmed against
+		// (ADR-0015): the counts are the durable evidence of what was acknowledged.
+		detail := map[string]any{"kind": req.Kind}
+		if cs := req.ShownChangeSet; cs != nil {
+			detail["creates"] = cs.CreateCount
+			detail["updates"] = cs.UpdateCount
+			detail["deletes"] = cs.DeleteCount
+			detail["truncated"] = cs.Truncated
+		}
+		if _, err := s.cfg.Audit.Record(ctx, domain.ActionRiskAcknowledged, opID, detail); err != nil {
 			return RunHandle{}, fmt.Errorf("recording risk acknowledgement: %w", err)
 		}
 	}

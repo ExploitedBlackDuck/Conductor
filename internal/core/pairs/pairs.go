@@ -38,8 +38,10 @@ type Store interface {
 	SetCeiling(ctx context.Context, c domain.RemoteCeiling) error
 }
 
-// Runner starts a validated operation; satisfied by *transfers.Service.
+// Runner previews and starts a validated operation; satisfied by
+// *transfers.Service.
 type Runner interface {
+	Preview(ctx context.Context, req transfers.RunRequest) (domain.ChangeSet, error)
 	Start(ctx context.Context, req transfers.RunRequest) (transfers.RunHandle, error)
 }
 
@@ -81,6 +83,17 @@ func (s *Service) Run(ctx context.Context, pairID string, acknowledged bool) (tr
 	req, pair, err := s.buildRun(ctx, pairID, acknowledged)
 	if err != nil {
 		return transfers.RunHandle{}, err
+	}
+
+	// A live run of a destructive pair (sync, bisync resync) must be previewed
+	// so the transfers gate has a change set to confirm against (ADR-0015). A
+	// forced first-run dry-run changes nothing and needs no preview (§7.4).
+	if acknowledged && !selectedBool(req.Selection, "--dry-run") {
+		cs, perr := s.cfg.Runner.Preview(ctx, req)
+		if perr != nil {
+			return transfers.RunHandle{}, perr
+		}
+		req.ShownChangeSet = &cs
 	}
 
 	handle, err := s.cfg.Runner.Start(ctx, req)
@@ -192,6 +205,12 @@ func (s *Service) resolveCeilings(ctx context.Context, remotes ...string) (optio
 		return c, ok
 	}
 	return governance.Resolve(s.cfg.Defaults, remotes, lookup), nil
+}
+
+// selectedBool reports whether a boolean flag is set true in the selection.
+func selectedBool(sel options.Selection, flag string) bool {
+	v := sel.Single[flag]
+	return v == "true" || v == "1"
 }
 
 // pairKind maps a saved-pair kind to its operation kind.
