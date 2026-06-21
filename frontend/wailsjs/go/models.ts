@@ -874,6 +874,18 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class OnboardingDTO {
+	    pinnedVersion: string;
+
+	    static createFrom(source: any = {}) {
+	        return new OnboardingDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pinnedVersion = source["pinnedVersion"];
+	    }
+	}
 	export class PreviewDTO {
 	    kind: string;
 	    resolvedSrc: string;

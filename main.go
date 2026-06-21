@@ -289,7 +289,7 @@ func run() error {
 		Audit:      auditSvc,
 	})
 
-	application := app.New(logger, buildinfo.Version(), ctrl, catalog, transferSvc, mountSvc, pairsSvc, historySvc, verifySvc)
+	application := app.New(logger, buildinfo.Version(), binaryPath, ctrl, catalog, transferSvc, mountSvc, pairsSvc, historySvc, verifySvc)
 
 	return shell.Run(shell.Config{
 		Window: shell.Window{

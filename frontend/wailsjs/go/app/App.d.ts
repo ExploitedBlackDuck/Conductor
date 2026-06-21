@@ -4,6 +4,8 @@ import {app} from '../models';
 import {context} from '../models';
 import {shell} from '../models';
 
+export function AcquireRclone():Promise<app.ErrorDTO>;
+
 export function AuditView():Promise<app.AuditViewDTO>;
 
 export function CancelRun(arg1:string):Promise<app.ErrorDTO>;
@@ -33,6 +35,8 @@ export function ListProfiles():Promise<app.ProfilesResultDTO>;
 export function ListVerifications():Promise<app.VerificationsResultDTO>;
 
 export function MountFs(arg1:string,arg2:string,arg3:string):Promise<app.ErrorDTO>;
+
+export function Onboarding():Promise<app.OnboardingDTO>;
 
 export function OnReady(arg1:context.Context,arg2:shell.Runtime):Promise<void>;
 

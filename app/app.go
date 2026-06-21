@@ -23,21 +23,22 @@ import (
 // from the composition root (§5). Business logic lives in core services; App
 // only adapts calls and maps errors.
 type App struct {
-	log       *slog.Logger
-	version   string
-	control   *control.Service
-	catalog   *options.Catalog
-	transfers *transfers.Service
-	mounts    *mounts.Service
-	pairs     *pairs.Service
-	history   *history.Service
-	verify    *verify.Service
-	stats     *statsEmitter
+	log        *slog.Logger
+	version    string
+	binaryPath string
+	control    *control.Service
+	catalog    *options.Catalog
+	transfers  *transfers.Service
+	mounts     *mounts.Service
+	pairs      *pairs.Service
+	history    *history.Service
+	verify     *verify.Service
+	stats      *statsEmitter
 }
 
 // New constructs the binding-layer App with its dependencies injected.
-func New(log *slog.Logger, version string, ctrl *control.Service, catalog *options.Catalog, tr *transfers.Service, mt *mounts.Service, pr *pairs.Service, hi *history.Service, vr *verify.Service) *App {
-	return &App{log: log, version: version, control: ctrl, catalog: catalog, transfers: tr, mounts: mt, pairs: pr, history: hi, verify: vr}
+func New(log *slog.Logger, version, binaryPath string, ctrl *control.Service, catalog *options.Catalog, tr *transfers.Service, mt *mounts.Service, pr *pairs.Service, hi *history.Service, vr *verify.Service) *App {
+	return &App{log: log, version: version, binaryPath: binaryPath, control: ctrl, catalog: catalog, transfers: tr, mounts: mt, pairs: pr, history: hi, verify: vr}
 }
 
 // OnReady is the shell's startup hook (shell.Config.OnReady). It wires the live

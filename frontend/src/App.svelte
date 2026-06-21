@@ -10,6 +10,12 @@
   import VerifyPanel from "./lib/components/VerifyPanel.svelte";
   import HistoryView from "./lib/components/HistoryView.svelte";
   import AuditView from "./lib/components/AuditView.svelte";
+  import OnboardingBanner from "./lib/components/OnboardingBanner.svelte";
+
+  // Binary-acquisition degraded states route into the onboarding wizard (§7.11.9).
+  const BINARY_CODES = ["ERR_RCLONE_BINARY_MISSING", "ERR_RCLONE_BINARY_CHECKSUM"];
+  $: binaryError =
+    $status?.error && BINARY_CODES.includes($status.error.code) ? $status.error : null;
 
   // Views land as their phases do; only those that are real are shown.
   type View = "transfers" | "dashboard" | "pairs" | "mounts" | "verify" | "history" | "audit" | "status";
@@ -50,6 +56,9 @@
   </nav>
 
   <main class="content">
+    {#if binaryError}
+      <div class="onboarding"><OnboardingBanner error={binaryError} /></div>
+    {/if}
     {#if view === "transfers"}
       <OperationBuilder />
     {:else if view === "dashboard"}
@@ -115,5 +124,8 @@
   .content {
     overflow-y: auto;
     padding: var(--space-6);
+  }
+  .onboarding {
+    margin-bottom: var(--space-4);
   }
 </style>
