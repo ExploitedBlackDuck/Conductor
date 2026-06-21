@@ -390,6 +390,49 @@ func TestPreviewUnavailableIsCoded(t *testing.T) {
 	assert.Equal(t, coreerr.CodeDryRunPreviewFailed, code)
 }
 
+// TestConcurrencyCapQueuesExcess is the §2.3 gate: with a cap of one, a second
+// operation queues behind the first and is admitted only once a slot frees.
+func TestConcurrencyCapQueuesExcess(t *testing.T) {
+	t.Parallel()
+	cat, err := options.Load()
+	require.NoError(t, err)
+	rc := &fakeRC{pollsToDone: 1_000_000} // op1 holds the slot until cancelled
+	svc := New(Config{
+		RC:            func() (RC, error) { return rc, nil },
+		Store:         &fakeStore{},
+		Audit:         &fakeAudit{},
+		Sealer:        newSealer(t),
+		Catalog:       cat,
+		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		PollEvery:     time.Millisecond,
+		MaxConcurrent: 1,
+	})
+	t.Cleanup(svc.Close)
+	ctx := context.Background()
+
+	h1, err := svc.Start(ctx, runReq(domain.KindCopy, nil, false))
+	require.NoError(t, err)
+
+	// op2 must queue behind the single slot.
+	done := make(chan error, 1)
+	go func() { _, e := svc.Start(ctx, runReq(domain.KindCopy, nil, false)); done <- e }()
+	select {
+	case <-done:
+		t.Fatal("op2 was admitted while the only slot was held by op1")
+	case <-time.After(50 * time.Millisecond):
+		// still queued, as expected
+	}
+
+	// Freeing op1's slot admits the queued op2.
+	require.NoError(t, svc.Cancel(ctx, h1.OperationID))
+	select {
+	case e := <-done:
+		require.NoError(t, e, "op2 should start once a slot is free")
+	case <-time.After(2 * time.Second):
+		t.Fatal("op2 was not admitted after the slot freed")
+	}
+}
+
 func TestCloseFinalizesActiveRuns(t *testing.T) {
 	t.Parallel()
 	rc := &fakeRC{pollsToDone: 1000}

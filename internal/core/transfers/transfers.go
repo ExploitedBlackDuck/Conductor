@@ -96,9 +96,19 @@ type Config struct {
 	Logger    *slog.Logger
 	Clock     ports.Clock
 	PollEvery time.Duration
+	// MaxConcurrent caps how many operations run at once (a Conductor-level
+	// limit, distinct from rclone's intra-job --transfers; §2.3, §7.6). Excess
+	// launches queue rather than overwhelming the link or a remote. Defaults to
+	// defaultMaxConcurrent; a negative value means unbounded.
+	MaxConcurrent int
 	// NewID generates operation ids; defaults to a random hex id.
 	NewID func() string
 }
+
+// defaultMaxConcurrent is the conservative default operation-concurrency cap
+// (§2.3): a single operator rarely needs more, and going wider is an explicit
+// choice. rclone's own intra-job parallelism is governed separately (§7.6).
+const defaultMaxConcurrent = 4
 
 // Service starts, watches, and records transfer operations.
 type Service struct {
@@ -107,6 +117,10 @@ type Service struct {
 	mu     sync.Mutex
 	active map[string]*run
 	wg     sync.WaitGroup
+	// sem bounds concurrently-running operations; a nil sem means unbounded. A
+	// slot is acquired when an operation is admitted and released when it
+	// finalizes, so excess Start calls queue on the channel send.
+	sem chan struct{}
 }
 
 type run struct {
@@ -132,7 +146,37 @@ func New(cfg Config) *Service {
 	if cfg.NewID == nil {
 		cfg.NewID = randomID
 	}
-	return &Service{cfg: cfg, active: map[string]*run{}}
+	if cfg.MaxConcurrent == 0 {
+		cfg.MaxConcurrent = defaultMaxConcurrent
+	}
+	s := &Service{cfg: cfg, active: map[string]*run{}}
+	if cfg.MaxConcurrent > 0 {
+		s.sem = make(chan struct{}, cfg.MaxConcurrent)
+	}
+	return s
+}
+
+// acquire admits an operation, blocking (queuing) until a concurrency slot is
+// free or the context is cancelled (§2.3). A nil sem means unbounded.
+func (s *Service) acquire(ctx context.Context) error {
+	if s.sem == nil {
+		return nil
+	}
+	select {
+	case s.sem <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// release frees a previously-acquired concurrency slot. It must be called
+// exactly once per successful acquire.
+func (s *Service) release() {
+	if s.sem == nil {
+		return
+	}
+	<-s.sem
 }
 
 // Preview builds the operation's validated command and runs its dry-run,
@@ -187,6 +231,19 @@ func (s *Service) Start(ctx context.Context, req RunRequest) (RunHandle, error) 
 				"this operation requires explicit acknowledgement of the previewed changes before it can run", nil)
 		}
 	}
+
+	// Admit the operation, queuing if the concurrency cap is reached (§2.3). The
+	// slot is held until the run finalizes; an early failure below releases it
+	// via the hand-off guard so a slot is never leaked.
+	if err := s.acquire(ctx); err != nil {
+		return RunHandle{}, err
+	}
+	handedOff := false
+	defer func() {
+		if !handedOff {
+			s.release()
+		}
+	}()
 
 	rc, err := s.cfg.RC()
 	if err != nil {
@@ -249,6 +306,8 @@ func (s *Service) Start(ctx context.Context, req RunRequest) (RunHandle, error) 
 
 	s.wg.Add(1)
 	go s.watch(watchCtx, r) //nolint:gosec,contextcheck // intentional: watcher lifetime is bound to Close, not the start ctx
+	// The watcher now owns the concurrency slot and releases it in finalize.
+	handedOff = true
 
 	return RunHandle{OperationID: opID, JobID: jobID}, nil
 }
@@ -383,6 +442,8 @@ func (s *Service) finalize(ctx context.Context, r *run, stopping bool) {
 	}
 
 	s.remove(r.op.ID)
+	// Free the concurrency slot so a queued operation can be admitted (§2.3).
+	s.release()
 }
 
 // persistChangeSet seals the acknowledged dry-run change set's path lists and
