@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { catalog, loadCatalog } from "../stores/catalog";
+  import { catalog, catalogError, catalogLoading, loadCatalog } from "../stores/catalog";
   import { builder } from "../stores/builder";
   import SourceDestPicker from "./SourceDestPicker.svelte";
   import OptionBuilder from "./OptionBuilder.svelte";
@@ -27,9 +27,22 @@
 
     <section class="card">
       <h2>Options</h2>
-      {#if $catalog}
+      {#if $catalog && $catalog.categories && $catalog.categories.length > 0}
         <p class="version">rclone {$catalog.rcloneVersion}</p>
         <OptionBuilder categories={$catalog.categories} />
+      {:else if $catalogError}
+        <div class="state">
+          <p class="state-title">The option catalog isn't available.</p>
+          <p class="muted">
+            Conductor renders options from the catalog for the verified rclone. If the binary
+            isn't resolved or the daemon is down, check the <strong>Status</strong> view.
+          </p>
+          <button class="retry" on:click={() => loadCatalog()} disabled={$catalogLoading}>
+            {$catalogLoading ? "Retrying…" : "Retry"}
+          </button>
+        </div>
+      {:else if $catalog}
+        <p class="muted">The catalog has no options for this rclone version.</p>
       {:else}
         <p class="muted">Loading option catalog…</p>
       {/if}
@@ -111,6 +124,30 @@
   }
   .muted {
     color: var(--color-text-muted);
+  }
+  .state {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: flex-start;
+  }
+  .state-title {
+    margin: 0;
+    font-weight: 600;
+    color: #ffb3ab;
+  }
+  .retry {
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
+    border-radius: 6px;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .retry:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* Below the minimum width, the preview pane drops below the builder rather

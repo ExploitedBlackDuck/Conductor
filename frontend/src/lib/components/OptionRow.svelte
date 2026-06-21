@@ -57,7 +57,7 @@
     {:else if isEnum}
       <select value={singleValue} on:change={onScalarChange}>
         <option value="">(default: {option.default || "none"})</option>
-        {#each option.enum as choice (choice)}
+        {#each option.enum ?? [] as choice (choice)}
           <option value={choice}>{choice}</option>
         {/each}
       </select>

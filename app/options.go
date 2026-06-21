@@ -74,9 +74,12 @@ func toOptionDTO(o options.Option) OptionDTO {
 		Description: o.Description,
 		Risk:        string(o.Risk),
 		AffectsData: o.AffectsData,
-		Enum:        o.Enum,
-		Governed:    string(o.Governed),
-		Kinds:       o.Kinds,
+		// Emit [] rather than null for list fields: a nil Go slice marshals to
+		// JSON null, and the frontend reads these as arrays (opt.kinds.length).
+		// A null there crashed the option builder into a blank panel.
+		Enum:     orEmpty(o.Enum),
+		Governed: string(o.Governed),
+		Kinds:    orEmpty(o.Kinds),
 	}
 }
 

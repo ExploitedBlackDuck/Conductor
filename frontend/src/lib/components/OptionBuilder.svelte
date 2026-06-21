@@ -11,35 +11,47 @@
   let query = "";
 
   // An option applies to the current kind unless it restricts to other kinds.
-  function appliesToKind(opt: app.OptionDTO): boolean {
-    return opt.kinds.length === 0 || opt.kinds.includes(kind);
+  // Guard against a null `kinds` (a nil Go slice serializing as null) so the
+  // builder never crashes into a blank panel.
+  function appliesToKind(opt: app.OptionDTO, k: string): boolean {
+    const kinds = opt.kinds ?? [];
+    return kinds.length === 0 || kinds.includes(k);
   }
-  function matchesQuery(opt: app.OptionDTO): boolean {
-    if (query.trim() === "") return true;
-    const q = query.toLowerCase();
-    return opt.flag.toLowerCase().includes(q) || opt.summary.toLowerCase().includes(q);
+  function matchesQuery(opt: app.OptionDTO, q: string): boolean {
+    if (q.trim() === "") return true;
+    const needle = q.toLowerCase();
+    return opt.flag.toLowerCase().includes(needle) || opt.summary.toLowerCase().includes(needle);
   }
-  function visibleOptions(cat: app.CategoryDTO): app.OptionDTO[] {
-    return cat.options.filter((o) => appliesToKind(o) && matchesQuery(o));
+
+  // Recompute the visible groups whenever the catalog, kind, or query change —
+  // passing kind/query as args so Svelte tracks them as dependencies.
+  function groupsFor(cats: app.CategoryDTO[], k: string, q: string) {
+    return cats
+      .map((c) => ({ name: c.name, opts: (c.options ?? []).filter((o) => appliesToKind(o, k) && matchesQuery(o, q)) }))
+      .filter((g) => g.opts.length > 0);
   }
+  $: groups = groupsFor(categories, kind, query);
 </script>
 
 <div class="builder">
   <input class="search" type="search" placeholder="Search options…" bind:value={query} />
 
-  {#each categories as cat (cat.name)}
-    {@const opts = visibleOptions(cat)}
-    {#if opts.length > 0}
-      <section class="category">
-        <h3>{cat.name}</h3>
-        <div class="options">
-          {#each opts as opt (opt.flag)}
-            <OptionRow option={opt} />
-          {/each}
-        </div>
-      </section>
-    {/if}
+  {#each groups as group (group.name)}
+    <section class="category">
+      <h3>{group.name}</h3>
+      <div class="options">
+        {#each group.opts as opt (opt.flag)}
+          <OptionRow option={opt} />
+        {/each}
+      </div>
+    </section>
   {/each}
+
+  {#if groups.length === 0}
+    <p class="empty">
+      {#if query.trim()}No options match “{query}”.{:else}No options apply to a {kind}.{/if}
+    </p>
+  {/if}
 </div>
 
 <style>
@@ -68,5 +80,10 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+  }
+  .empty {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    margin: 0;
   }
 </style>

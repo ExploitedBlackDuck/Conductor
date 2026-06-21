@@ -139,7 +139,7 @@
               {:else if o.type === "enum"}
                 <select value={single[o.flag] ?? ""} on:change={(e) => setSingle(o.flag, e.currentTarget.value)}>
                   <option value="">(default)</option>
-                  {#each o.enum as choice (choice)}
+                  {#each o.enum ?? [] as choice (choice)}
                     <option value={choice}>{choice}</option>
                   {/each}
                 </select>

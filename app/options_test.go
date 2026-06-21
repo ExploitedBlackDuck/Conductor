@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -37,6 +38,18 @@ func TestGetCatalogIsOrderedAndPopulated(t *testing.T) {
 	require.GreaterOrEqual(t, perfIdx, 0)
 	require.GreaterOrEqual(t, delIdx, 0)
 	assert.Less(t, perfIdx, delIdx)
+}
+
+// TestGetCatalogEmitsNoNullArrays guards the contract the frontend depends on:
+// list fields must serialize as [] not null, or opt.kinds.length crashes the
+// option builder into a blank panel (§7.11.9).
+func TestGetCatalogEmitsNoNullArrays(t *testing.T) {
+	t.Parallel()
+	b, err := json.Marshal(testApp(t).GetCatalog())
+	require.NoError(t, err)
+	s := string(b)
+	assert.NotContains(t, s, `"kinds":null`, "kinds must be [] not null")
+	assert.NotContains(t, s, `"enum":null`, "enum must be [] not null")
 }
 
 func TestPreviewSyncRequiresAck(t *testing.T) {
