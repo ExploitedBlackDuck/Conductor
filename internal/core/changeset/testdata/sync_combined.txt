@@ -1,0 +1,5 @@
++ a.txt
+- c.txt
++ sub/nested.txt
+* b.txt
+= keep.txt
