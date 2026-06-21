@@ -23,6 +23,8 @@ const (
 	CodeOptionInvalid           Code = "ERR_OPTION_INVALID"
 	CodeOptionOverCeiling       Code = "ERR_OPTION_OVER_CEILING"
 	CodeDestructiveNotConfirmed Code = "ERR_DESTRUCTIVE_NOT_CONFIRMED"
+	CodeDryRunPreviewRequired   Code = "ERR_DRYRUN_PREVIEW_REQUIRED"
+	CodeDryRunPreviewFailed     Code = "ERR_DRYRUN_PREVIEW_FAILED"
 	CodeJobCancelled            Code = "ERR_JOB_CANCELLED"
 	CodeStoreMigration          Code = "ERR_STORE_MIGRATION"
 	CodeSecretUnavailable       Code = "ERR_SECRET_UNAVAILABLE" //nolint:gosec // G101 false positive: an error code, not a credential
