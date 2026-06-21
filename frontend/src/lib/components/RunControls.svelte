@@ -2,6 +2,7 @@
   import type { app } from "../../../wailsjs/go/models";
   import { runControls } from "../stores/runControls";
   import { run } from "../stores/run";
+  import ChangeSetPreview from "./ChangeSetPreview.svelte";
 
   export let preview: app.PreviewDTO | null;
 
@@ -10,10 +11,23 @@
   $: requiresAck = preview?.requiresAck ?? false;
   $: hasError = !!preview?.error;
   $: active = $runControls.operationId !== null;
-  $: canRun = !!preview && !hasError && (!requiresAck || acknowledged) && !$runControls.busy && !active;
+  $: changeSet = $runControls.changeSet;
+  // ADR-0015: a destructive run can only proceed once it has been previewed
+  // (the change set is shown) and that change set is acknowledged.
+  $: previewed = changeSet !== null;
+  $: canRun =
+    !!preview &&
+    !hasError &&
+    (!requiresAck || (previewed && acknowledged)) &&
+    !$runControls.busy &&
+    !active;
 
   // Return the control to Start once the daemon reports the work is done.
   $: if ($run) runControls.clearIfDone($run.activeJobs);
+
+  // A change to the selection (reflected in a fresh impact preview) invalidates
+  // any shown change set, so the operator must re-preview before confirming.
+  $: preview, runControls.clearPreview();
 
   function onAck(e: Event) {
     acknowledged = (e.target as HTMLInputElement).checked;
@@ -22,10 +36,18 @@
 
 <div class="controls">
   {#if requiresAck && !active}
-    <label class="ack">
-      <input type="checkbox" checked={acknowledged} on:change={onAck} />
-      <span>I understand this operation can change or delete data and want to proceed.</span>
-    </label>
+    {#if changeSet}
+      <ChangeSetPreview {changeSet} />
+      <label class="ack">
+        <input type="checkbox" checked={acknowledged} on:change={onAck} />
+        <span>I have reviewed the {changeSet.deleteCount} deletion{changeSet.deleteCount === 1 ? "" : "s"} above and want to proceed.</span>
+      </label>
+    {:else}
+      <button class="preview" on:click={() => runControls.previewChanges()} disabled={!preview || hasError || $runControls.busy}>
+        {$runControls.busy ? "Previewing…" : "Preview changes (dry-run)"}
+      </button>
+      <span class="hint">A destructive operation must be previewed before it can run.</span>
+    {/if}
   {/if}
 
   {#if active}
@@ -68,6 +90,10 @@
   }
   .stop {
     background: #b62324;
+  }
+  .preview {
+    background: #1f6feb;
+    align-self: flex-start;
   }
   .ack {
     display: flex;

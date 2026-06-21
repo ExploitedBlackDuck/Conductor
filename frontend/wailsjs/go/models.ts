@@ -674,6 +674,94 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class FileChangeDTO {
+	    kind: string;
+	    path: string;
+
+	    static createFrom(source: any = {}) {
+	        return new FileChangeDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.path = source["path"];
+	    }
+	}
+	export class ChangeSetDTO {
+	    creates: FileChangeDTO[];
+	    updates: FileChangeDTO[];
+	    deletes: FileChangeDTO[];
+	    createCount: number;
+	    updateCount: number;
+	    deleteCount: number;
+	    truncated: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new ChangeSetDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.creates = this.convertValues(source["creates"], FileChangeDTO);
+	        this.updates = this.convertValues(source["updates"], FileChangeDTO);
+	        this.deletes = this.convertValues(source["deletes"], FileChangeDTO);
+	        this.createCount = source["createCount"];
+	        this.updateCount = source["updateCount"];
+	        this.deleteCount = source["deleteCount"];
+	        this.truncated = source["truncated"];
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ChangeSetResultDTO {
+	    changeSet: ChangeSetDTO;
+	    error?: ErrorDTO;
+
+	    static createFrom(source: any = {}) {
+	        return new ChangeSetResultDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.changeSet = this.convertValues(source["changeSet"], ChangeSetDTO);
+	        this.error = this.convertValues(source["error"], ErrorDTO);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class PreviewDTO {
 	    kind: string;
 	    resolvedSrc: string;

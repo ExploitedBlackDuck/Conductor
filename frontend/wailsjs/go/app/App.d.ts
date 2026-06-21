@@ -40,6 +40,8 @@ export function OperationDetail(arg1:string):Promise<app.OperationDetailDTO>;
 
 export function PreviewOperation(arg1:app.PreviewRequest):Promise<app.PreviewDTO>;
 
+export function PreviewRun(arg1:app.PreviewRequest):Promise<app.ChangeSetResultDTO>;
+
 export function RecentHistory(arg1:number):Promise<app.OperationsResultDTO>;
 
 export function RunPair(arg1:string,arg2:boolean):Promise<app.RunResultDTO>;

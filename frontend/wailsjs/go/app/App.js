@@ -74,6 +74,10 @@ export function PreviewOperation(arg1) {
   return window['go']['app']['App']['PreviewOperation'](arg1);
 }
 
+export function PreviewRun(arg1) {
+  return window['go']['app']['App']['PreviewRun'](arg1);
+}
+
 export function RecentHistory(arg1) {
   return window['go']['app']['App']['RecentHistory'](arg1);
 }
