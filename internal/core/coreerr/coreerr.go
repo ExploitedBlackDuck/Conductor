@@ -26,6 +26,7 @@ const (
 	CodeDryRunPreviewRequired   Code = "ERR_DRYRUN_PREVIEW_REQUIRED"
 	CodeDryRunPreviewFailed     Code = "ERR_DRYRUN_PREVIEW_FAILED"
 	CodeJobCancelled            Code = "ERR_JOB_CANCELLED"
+	CodeSingleInstanceLock      Code = "ERR_SINGLE_INSTANCE_LOCK"
 	CodeStoreMigration          Code = "ERR_STORE_MIGRATION"
 	CodeSecretUnavailable       Code = "ERR_SECRET_UNAVAILABLE" //nolint:gosec // G101 false positive: an error code, not a credential
 	CodeAuditChainBroken        Code = "ERR_AUDIT_CHAIN_BROKEN"

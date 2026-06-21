@@ -7,9 +7,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/conductor-app/conductor/app"
 	"github.com/conductor-app/conductor/frontend"
@@ -20,7 +22,9 @@ import (
 	"github.com/conductor-app/conductor/internal/buildinfo"
 	"github.com/conductor-app/conductor/internal/core/audit"
 	"github.com/conductor-app/conductor/internal/core/control"
+	"github.com/conductor-app/conductor/internal/core/coreerr"
 	"github.com/conductor-app/conductor/internal/core/daemon"
+	"github.com/conductor-app/conductor/internal/core/domain"
 	"github.com/conductor-app/conductor/internal/core/history"
 	"github.com/conductor-app/conductor/internal/core/mounts"
 	"github.com/conductor-app/conductor/internal/core/options"
@@ -33,6 +37,7 @@ import (
 	"github.com/conductor-app/conductor/internal/platform/config"
 	"github.com/conductor-app/conductor/internal/platform/logging"
 	"github.com/conductor-app/conductor/internal/platform/paths"
+	"github.com/conductor-app/conductor/internal/platform/singleinstance"
 	"github.com/conductor-app/conductor/shell"
 )
 
@@ -94,6 +99,19 @@ func run() error {
 		"data_dir", p.DataDir,
 	)
 
+	// Single-instance lock (§2.3): exactly one process may own the data dir, so
+	// the single-writer store and the single-appender audit chain are never
+	// contended. Acquire it before opening the database it guards.
+	lock, err := singleinstance.Acquire(filepath.Join(p.DataDir, "conductor.lock"))
+	if err != nil {
+		if errors.Is(err, singleinstance.ErrAlreadyRunning) {
+			return coreerr.New(coreerr.CodeSingleInstanceLock,
+				"another Conductor instance is already running for this data directory", err)
+		}
+		return fmt.Errorf("acquiring single-instance lock: %w", err)
+	}
+	defer func() { _ = lock.Release() }()
+
 	// Persistence foundation: open the store, running forward-only migrations
 	// behind the schema-version check (ADR-0007).
 	store, err := sqlitestore.Open(ctx, filepath.Join(p.DataDir, "conductor.db"))
@@ -142,6 +160,21 @@ func run() error {
 	}
 
 	auditSvc := audit.New(store, ports.SystemClock{})
+
+	// Reconcile state orphaned by an unclean exit (§2.3): rclone jobs die with
+	// the daemon, so any operation still marked running on this launch is closed
+	// as interrupted and the reconciliation is audited. A clean restart is a
+	// no-op. This is exactly the re-acquire-after-crash path the lock above
+	// distinguishes from a live second instance.
+	if n, rerr := store.ReconcileRunningOperations(ctx, time.Now().UTC()); rerr != nil {
+		logger.Error("reconciling orphaned operations failed", "error", rerr)
+	} else if n > 0 {
+		logger.Warn("closed orphaned operations from an unclean exit", "count", n)
+		if _, aerr := auditSvc.Record(ctx, domain.ActionOperationInterrupted, "startup",
+			map[string]any{"reconciled": n}); aerr != nil {
+			logger.Error("auditing reconciliation failed", "error", aerr)
+		}
+	}
 
 	// The destructive-op preview gate (ADR-0015) runs the pinned rclone with
 	// --dry-run as a sanctioned one-shot subprocess and parses the change set.

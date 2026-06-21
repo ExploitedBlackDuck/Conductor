@@ -12,6 +12,10 @@ const (
 	ResultSuccess   Result = "success"
 	ResultFailed    Result = "failed"
 	ResultCancelled Result = "cancelled"
+	// ResultInterrupted marks an operation orphaned by a daemon/app restart: its
+	// rclone job died with the daemon and Conductor closed the stale row on the
+	// next launch (§2.3). No operation is left silently "running" forever.
+	ResultInterrupted Result = "interrupted"
 )
 
 // Operation is the persisted history record of one copy/sync/move/etc. (§7.7).

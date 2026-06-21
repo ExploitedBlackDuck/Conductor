@@ -104,6 +104,22 @@ func (s *Store) ClearHistory(ctx context.Context) (int64, error) {
 	return n, nil
 }
 
+// ReconcileRunningOperations closes any operation still marked running — these
+// were orphaned by an unclean exit, since rclone jobs die with the daemon
+// (§2.3, ADR-0005). They are stamped interrupted with the given end time.
+// Returns the number reconciled (zero on a clean restart).
+func (s *Store) ReconcileRunningOperations(ctx context.Context, at time.Time) (int64, error) {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE operations SET result = ?, ended_at = ?
+		 WHERE result = ?`,
+		string(domain.ResultInterrupted), at.UTC().Format(timeLayout), string(domain.ResultRunning))
+	if err != nil {
+		return 0, fmt.Errorf("reconciling running operations: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
 // queryOperations runs a SELECT returning the standard operation columns and
 // scans every row.
 func (s *Store) queryOperations(ctx context.Context, query string, args ...any) ([]domain.Operation, error) {

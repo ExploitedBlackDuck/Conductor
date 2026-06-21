@@ -85,6 +85,39 @@ func TestHistoryQueries(t *testing.T) {
 	})
 }
 
+func TestReconcileRunningOperations(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := openTemp(t)
+
+	base := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	// A finished op and a still-"running" op orphaned by an unclean exit.
+	seedOp(t, store, "op-done", domain.KindCopy, "s3:a", "/b", base)
+	running := domain.Operation{
+		ID: "op-stuck", Kind: domain.KindSync, Src: "/x", Dst: "s3:y", RcloneVersion: "v1.74.3",
+		StartedAt: base, Result: domain.ResultRunning,
+	}
+	require.NoError(t, store.InsertOperation(ctx, running, nil, nil))
+
+	at := base.Add(time.Hour)
+	n, err := store.ReconcileRunningOperations(ctx, at)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), n, "only the running row is reconciled")
+
+	got, _, _, err := store.OperationByID(ctx, "op-stuck")
+	require.NoError(t, err)
+	assert.Equal(t, domain.ResultInterrupted, got.Result)
+	assert.True(t, at.Equal(got.EndedAt), "the interrupted op is given an end time")
+
+	// The already-finished op is untouched, and a second reconcile is a no-op.
+	done, _, _, err := store.OperationByID(ctx, "op-done")
+	require.NoError(t, err)
+	assert.Equal(t, domain.ResultSuccess, done.Result)
+	n, err = store.ReconcileRunningOperations(ctx, at)
+	require.NoError(t, err)
+	assert.Zero(t, n, "a clean restart reconciles nothing")
+}
+
 func TestClearHistoryRemovesRowsNotAudit(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

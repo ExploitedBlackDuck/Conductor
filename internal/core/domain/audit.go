@@ -18,6 +18,7 @@ type AuditAction string
 const (
 	ActionOperationStart       AuditAction = "operation.start"
 	ActionOperationStop        AuditAction = "operation.stop"
+	ActionOperationInterrupted AuditAction = "operation.interrupted"
 	ActionDestructiveConfirmed AuditAction = "operation.destructive_confirmed"
 	ActionRiskAcknowledged     AuditAction = "operation.risk_acknowledged"
 	ActionMount                AuditAction = "mount.mount"
