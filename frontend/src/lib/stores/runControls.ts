@@ -6,6 +6,7 @@ import { writable } from "svelte/store";
 import { StartRun, PreviewRun, CancelRun } from "../../../wailsjs/go/app/App";
 import type { app } from "../../../wailsjs/go/models";
 import { builder } from "./builder";
+import { ensurePermission, notify, LONG_OPERATION_MS } from "../notify";
 
 export interface RunState {
   operationId: string | null;
@@ -51,13 +52,22 @@ function createRunControls() {
     }
   }
 
+  // startedAt and runningKind track the active run so a long operation's
+  // completion can raise a native notification (§7.13).
+  let startedAt = 0;
+  let runningKind = "";
+
   async function start(acknowledged: boolean): Promise<void> {
+    void ensurePermission(); // ask once, at a meaningful moment
+    const kind = builder.current().kind;
     update((s) => ({ ...s, busy: true, error: null }));
     try {
       const res = await StartRun(selectionRequest(), acknowledged);
       if (res.error) {
         update((s) => ({ ...s, operationId: null, busy: false, error: res.error ?? null }));
       } else {
+        startedAt = Date.now();
+        runningKind = kind;
         set({ operationId: res.operationId, busy: false, error: null, changeSet: null });
       }
     } catch {
@@ -77,9 +87,15 @@ function createRunControls() {
   }
 
   // clearIfDone resets the active run once the daemon reports no active jobs,
-  // so the control returns to Start after a natural completion.
+  // so the control returns to Start after a natural completion. A long-running
+  // operation's completion raises a notification (§7.13).
   function clearIfDone(activeJobs: number): void {
     if (state.operationId && activeJobs === 0) {
+      if (startedAt > 0 && Date.now() - startedAt >= LONG_OPERATION_MS) {
+        notify("Conductor", `Your ${runningKind || "transfer"} has finished.`);
+      }
+      startedAt = 0;
+      runningKind = "";
       set({ ...initial });
     }
   }
