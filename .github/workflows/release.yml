@@ -30,6 +30,10 @@ jobs:
           - os: ubuntu-latest
             target: linux-amd64
     runs-on: ${{ matrix.os }}
+    # Lifted to job level so the signing steps' `if:` conditions can read it (a
+    # step's own env is not visible to its own `if:`).
+    env:
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
     steps:
       - uses: actions/checkout@v4
 
@@ -51,7 +55,12 @@ jobs:
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 
       - name: Install task
-        run: go install github.com/go-task/task/v3/cmd/task@latest
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Install frontend dependencies
+        run: task frontend:install
 
       - name: Build (frontend embedded)
         run: task build
@@ -59,7 +68,6 @@ jobs:
       - name: Sign & notarize (macOS)
         if: runner.os == 'macOS' && env.MACOS_CERTIFICATE != ''
         env:
-          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
           MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -84,8 +92,6 @@ jobs:
 
       - name: Note unsigned macOS build
         if: runner.os == 'macOS' && env.MACOS_CERTIFICATE == ''
-        env:
-          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
         run: echo "::warning::macOS build is UNSIGNED — Developer ID secrets not configured."
 
       - name: Name artifact and checksum
