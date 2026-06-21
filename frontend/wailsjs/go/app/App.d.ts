@@ -30,6 +30,8 @@ export function ListPairs():Promise<app.PairsResultDTO>;
 
 export function ListProfiles():Promise<app.ProfilesResultDTO>;
 
+export function ListVerifications():Promise<app.VerificationsResultDTO>;
+
 export function MountFs(arg1:string,arg2:string,arg3:string):Promise<app.ErrorDTO>;
 
 export function OnReady(arg1:context.Context,arg2:shell.Runtime):Promise<void>;
@@ -45,6 +47,8 @@ export function PreviewRun(arg1:app.PreviewRequest):Promise<app.ChangeSetResultD
 export function RecentHistory(arg1:number):Promise<app.OperationsResultDTO>;
 
 export function RunPair(arg1:string,arg2:boolean):Promise<app.RunResultDTO>;
+
+export function RunVerify(arg1:string,arg2:app.EndpointDTO,arg3:app.EndpointDTO,arg4:boolean):Promise<app.VerifyResultDTO>;
 
 export function SavePair(arg1:app.PairDTO):Promise<app.ErrorDTO>;
 

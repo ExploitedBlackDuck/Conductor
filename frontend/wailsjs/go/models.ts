@@ -768,6 +768,110 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class VerificationDTO {
+	    id: string;
+	    kind: string;
+	    src: string;
+	    dst: string;
+	    startedAt: string;
+	    endedAt: string;
+	    match: number;
+	    differ: number;
+	    missing: number;
+	    errorCount: number;
+	    result: string;
+
+	    static createFrom(source: any = {}) {
+	        return new VerificationDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kind = source["kind"];
+	        this.src = source["src"];
+	        this.dst = source["dst"];
+	        this.startedAt = source["startedAt"];
+	        this.endedAt = source["endedAt"];
+	        this.match = source["match"];
+	        this.differ = source["differ"];
+	        this.missing = source["missing"];
+	        this.errorCount = source["errorCount"];
+	        this.result = source["result"];
+	    }
+	}
+	export class VerifyResultDTO {
+	    verification: VerificationDTO;
+	    differ: string[];
+	    missingOnSrc: string[];
+	    missingOnDst: string[];
+	    errors: string[];
+	    error?: ErrorDTO;
+
+	    static createFrom(source: any = {}) {
+	        return new VerifyResultDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.verification = this.convertValues(source["verification"], VerificationDTO);
+	        this.differ = source["differ"];
+	        this.missingOnSrc = source["missingOnSrc"];
+	        this.missingOnDst = source["missingOnDst"];
+	        this.errors = source["errors"];
+	        this.error = this.convertValues(source["error"], ErrorDTO);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class VerificationsResultDTO {
+	    verifications: VerificationDTO[];
+	    error?: ErrorDTO;
+
+	    static createFrom(source: any = {}) {
+	        return new VerificationsResultDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.verifications = this.convertValues(source["verifications"], VerificationDTO);
+	        this.error = this.convertValues(source["error"], ErrorDTO);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class PreviewDTO {
 	    kind: string;
 	    resolvedSrc: string;

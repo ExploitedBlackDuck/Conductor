@@ -34,6 +34,7 @@ import (
 	"github.com/conductor-app/conductor/internal/core/rclonebin"
 	"github.com/conductor-app/conductor/internal/core/secrets"
 	"github.com/conductor-app/conductor/internal/core/transfers"
+	"github.com/conductor-app/conductor/internal/core/verify"
 	"github.com/conductor-app/conductor/internal/platform/config"
 	"github.com/conductor-app/conductor/internal/platform/logging"
 	"github.com/conductor-app/conductor/internal/platform/paths"
@@ -45,6 +46,21 @@ import (
 // ceilings (ADR-0013): safe by default, with going faster an explicit,
 // per-remote choice. Per-remote ceilings only tighten these further (§7.6).
 var governanceDefaults = options.Ceilings{Transfers: 4, Checkers: 8}
+
+// verifyRCAdapter adapts the rc client to verify.RC, projecting the structured
+// operations/check result down to the combined report the verify service parses.
+type verifyRCAdapter struct {
+	*rcclient.Client
+}
+
+// OperationsCheck returns just the combined per-file report (§7.12).
+func (a verifyRCAdapter) OperationsCheck(ctx context.Context, src, dst string, oneway bool) ([]string, error) {
+	res, err := a.Client.OperationsCheck(ctx, src, dst, oneway)
+	if err != nil {
+		return nil, err
+	}
+	return res.Combined, nil
+}
 
 // rcAdapter wraps the rc client to satisfy control.RC, projecting the daemon's
 // job list down to the running job ids the live-stats poller needs. Keeping this
@@ -250,7 +266,29 @@ func run() error {
 	// export over the persisted operations and audit chain (§7.7, §7.11.7).
 	historySvc := history.New(history.Config{Store: store, Audit: auditSvc})
 
-	application := app.New(logger, buildinfo.Version(), ctrl, catalog, transferSvc, mountSvc, pairsSvc, historySvc)
+	// Integrity verification (§7.12): check over rc, cryptcheck as a one-shot
+	// subprocess; results are persisted and hash-chained into the audit log.
+	verifyRC := func() (verify.RC, error) {
+		addr, err := supervisor.Addr()
+		if err != nil {
+			return nil, err
+		}
+		creds, err := supervisor.Credentials()
+		if err != nil {
+			return nil, err
+		}
+		return verifyRCAdapter{rcclient.New(addr, creds.User, creds.Pass)}, nil
+	}
+	verifySvc := verify.New(verify.Config{
+		RC:         verifyRC,
+		Runner:     procrunner.New(),
+		BinaryPath: binaryPath,
+		ConfigPath: cfg.Rclone.ConfigPath,
+		Store:      store,
+		Audit:      auditSvc,
+	})
+
+	application := app.New(logger, buildinfo.Version(), ctrl, catalog, transferSvc, mountSvc, pairsSvc, historySvc, verifySvc)
 
 	return shell.Run(shell.Config{
 		Window: shell.Window{

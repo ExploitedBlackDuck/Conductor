@@ -21,6 +21,7 @@ const (
 	ActionOperationInterrupted AuditAction = "operation.interrupted"
 	ActionDestructiveConfirmed AuditAction = "operation.destructive_confirmed"
 	ActionRiskAcknowledged     AuditAction = "operation.risk_acknowledged"
+	ActionVerification         AuditAction = "verification"
 	ActionMount                AuditAction = "mount.mount"
 	ActionUnmount              AuditAction = "mount.unmount"
 	ActionGovernanceCeilingSet AuditAction = "governance.ceiling_set"

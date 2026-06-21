@@ -54,6 +54,10 @@ export function ListProfiles() {
   return window['go']['app']['App']['ListProfiles']();
 }
 
+export function ListVerifications() {
+  return window['go']['app']['App']['ListVerifications']();
+}
+
 export function MountFs(arg1, arg2, arg3) {
   return window['go']['app']['App']['MountFs'](arg1, arg2, arg3);
 }
@@ -84,6 +88,10 @@ export function RecentHistory(arg1) {
 
 export function RunPair(arg1, arg2) {
   return window['go']['app']['App']['RunPair'](arg1, arg2);
+}
+
+export function RunVerify(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['RunVerify'](arg1, arg2, arg3, arg4);
 }
 
 export function SavePair(arg1) {

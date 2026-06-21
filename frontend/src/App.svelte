@@ -7,17 +7,19 @@
   import LiveDashboard from "./lib/components/LiveDashboard.svelte";
   import MountsView from "./lib/components/MountsView.svelte";
   import PairsView from "./lib/components/PairsView.svelte";
+  import VerifyPanel from "./lib/components/VerifyPanel.svelte";
   import HistoryView from "./lib/components/HistoryView.svelte";
   import AuditView from "./lib/components/AuditView.svelte";
 
   // Views land as their phases do; only those that are real are shown.
-  type View = "transfers" | "dashboard" | "pairs" | "mounts" | "history" | "audit" | "status";
+  type View = "transfers" | "dashboard" | "pairs" | "mounts" | "verify" | "history" | "audit" | "status";
   let view: View = "transfers";
   const nav: { id: View; label: string }[] = [
     { id: "transfers", label: "Transfers" },
     { id: "dashboard", label: "Dashboard" },
     { id: "pairs", label: "Pairs" },
     { id: "mounts", label: "Mounts" },
+    { id: "verify", label: "Verify" },
     { id: "history", label: "History" },
     { id: "audit", label: "Audit" },
     { id: "status", label: "Status" },
@@ -56,6 +58,8 @@
       <PairsView />
     {:else if view === "mounts"}
       <MountsView />
+    {:else if view === "verify"}
+      <VerifyPanel />
     {:else if view === "history"}
       <HistoryView />
     {:else if view === "audit"}

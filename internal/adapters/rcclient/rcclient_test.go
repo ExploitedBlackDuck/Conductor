@@ -122,6 +122,21 @@ func TestListMounts(t *testing.T) {
 	assert.False(t, mounts[0].MountedOn.IsZero())
 }
 
+func TestOperationsCheck(t *testing.T) {
+	t.Parallel()
+	srv := fixtureServer(t, map[string]string{"operations/check": "operations_check.json"})
+	c := clientFor(t, srv)
+
+	res, err := c.OperationsCheck(context.Background(), "/src", "s3:dst", false)
+	require.NoError(t, err)
+	assert.False(t, res.Success)
+	assert.Equal(t, "md5", res.HashType)
+	assert.Equal(t, []string{"differ.txt"}, res.Differ)
+	assert.Equal(t, []string{"onlysrc.txt"}, res.MissingOnDst)
+	assert.Equal(t, []string{"onlydst.txt"}, res.MissingOnSrc)
+	assert.Len(t, res.Combined, 4)
+}
+
 func TestJobList(t *testing.T) {
 	t.Parallel()
 	srv := fixtureServer(t, map[string]string{"job/list": "job_list.json"})

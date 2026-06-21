@@ -1,0 +1,21 @@
+{
+    "combined": [
+        "- onlydst.txt",
+        "+ onlysrc.txt",
+        "= match.txt",
+        "* differ.txt"
+    ],
+    "differ": [
+        "differ.txt"
+    ],
+    "error": [],
+    "hashType": "md5",
+    "missingOnDst": [
+        "onlysrc.txt"
+    ],
+    "missingOnSrc": [
+        "onlydst.txt"
+    ],
+    "status": "3 differences found",
+    "success": false
+}

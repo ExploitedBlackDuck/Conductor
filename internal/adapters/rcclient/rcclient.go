@@ -226,6 +226,34 @@ func (c *Client) SyncBisync(ctx context.Context, path1, path2 string, resync, dr
 	return resp.JobID, nil
 }
 
+// CheckResult is the structured result of operations/check (§7.12). The path
+// lists name the offending files; combined is the per-file sigil report
+// (= match, * differ, + missing on dst, - missing on src, ! error).
+type CheckResult struct {
+	Combined     []string `json:"combined"`
+	Differ       []string `json:"differ"`
+	MissingOnSrc []string `json:"missingOnSrc"`
+	MissingOnDst []string `json:"missingOnDst"`
+	Error        []string `json:"error"`
+	HashType     string   `json:"hashType"`
+	Success      bool     `json:"success"`
+}
+
+// OperationsCheck compares srcFs against dstFs over rc (operations/check),
+// returning the structured per-file result. It mutates nothing. oneway limits
+// the comparison to files present on the source (skips missing-on-source).
+func (c *Client) OperationsCheck(ctx context.Context, srcFs, dstFs string, oneway bool) (CheckResult, error) {
+	body := map[string]any{"srcFs": srcFs, "dstFs": dstFs, "combined": true}
+	if oneway {
+		body["oneway"] = true
+	}
+	var resp CheckResult
+	if err := c.call(ctx, "operations/check", body, &resp); err != nil {
+		return CheckResult{}, err
+	}
+	return resp, nil
+}
+
 // JobStop requests cancellation of a running job (job/stop).
 func (c *Client) JobStop(ctx context.Context, id int64) error {
 	return c.call(ctx, "job/stop", map[string]any{"jobid": id}, nil)
