@@ -11,6 +11,7 @@
   import HistoryView from "./lib/components/HistoryView.svelte";
   import AuditView from "./lib/components/AuditView.svelte";
   import OnboardingBanner from "./lib/components/OnboardingBanner.svelte";
+  import CommandPalette from "./lib/components/CommandPalette.svelte";
 
   // Binary-acquisition degraded states route into the onboarding wizard (§7.11.9).
   const BINARY_CODES = ["ERR_RCLONE_BINARY_MISSING", "ERR_RCLONE_BINARY_CHECKSUM"];
@@ -30,6 +31,15 @@
     { id: "audit", label: "Audit" },
     { id: "status", label: "Status" },
   ];
+
+  // The command palette navigates to any view (§7.13); destructive actions still
+  // pass their own gate, so this only sets the active view.
+  $: paletteCommands = nav.map((item) => ({
+    id: item.id,
+    label: item.label,
+    hint: "view",
+    run: () => (view = item.id),
+  }));
 
   onMount(() => {
     status.start(1000);
@@ -54,6 +64,8 @@
       {/each}
     </ul>
   </nav>
+
+  <CommandPalette commands={paletteCommands} />
 
   <main class="content">
     {#if binaryError}
