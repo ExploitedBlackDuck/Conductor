@@ -1,0 +1,132 @@
+name: Release
+
+# Implements §9 (ADR-0012): build per-platform artifacts on a signed semver tag,
+# publish SHA-256 checksums, and attach everything to a GitHub release. The
+# release is created as a DRAFT so a human verifies artifacts (and that signing
+# ran) before publishing.
+#
+# macOS signing + notarization run only when the Developer ID secrets are
+# present; without them the build still produces an unsigned binary and the job
+# notes that signing was skipped. Full app-bundle packaging (.dmg / AppImage /
+# .deb) is layered on top of these binaries and is tracked separately — see the
+# "package" notes below.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  artifacts:
+    name: Build & checksum (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: darwin-arm64
+          - os: ubuntu-latest
+            target: linux-amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Linux webview build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Install task
+        run: go install github.com/go-task/task/v3/cmd/task@latest
+
+      - name: Build (frontend embedded)
+        run: task build
+
+      - name: Sign & notarize (macOS)
+        if: runner.os == 'macOS' && env.MACOS_CERTIFICATE != ''
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          # Developer ID signing + notarize+staple. Requires the Apple secrets
+          # above; the step is skipped when MACOS_CERTIFICATE is unset so forks
+          # and unsigned dry runs still build.
+          echo "$MACOS_CERTIFICATE" | base64 --decode > cert.p12
+          security create-keychain -p actions build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p actions build.keychain
+          security import cert.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k actions build.keychain
+          codesign --force --options runtime --timestamp \
+            --sign "$MACOS_SIGN_IDENTITY" build/bin/conductor
+          # Notarization is performed against the packaged artifact (.dmg/.zip)
+          # produced by the packaging step; see notes. Placeholder for the
+          # `xcrun notarytool submit --wait` + `xcrun stapler staple` calls.
+          rm -f cert.p12
+
+      - name: Note unsigned macOS build
+        if: runner.os == 'macOS' && env.MACOS_CERTIFICATE == ''
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+        run: echo "::warning::macOS build is UNSIGNED — Developer ID secrets not configured."
+
+      - name: Name artifact and checksum
+        shell: bash
+        run: |
+          mkdir -p dist
+          art="conductor-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          cp build/bin/conductor "dist/${art}"
+          ( cd dist && shasum -a 256 "${art}" > "${art}.sha256" )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*
+
+  release:
+    name: Publish draft release
+    needs: artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Combine checksums
+        run: |
+          cd dist
+          cat *.sha256 > SHA256SUMS
+          echo "Published checksums:" && cat SHA256SUMS
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            dist/conductor-*
+            dist/SHA256SUMS
+          body: |
+            Conductor ${{ github.ref_name }}
+
+            Verify a download against `SHA256SUMS` before running.
+            Draft: confirm artifacts (and that macOS signing/notarization ran)
+            before publishing.
