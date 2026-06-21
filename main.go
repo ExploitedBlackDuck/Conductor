@@ -228,14 +228,15 @@ func run() error {
 		return rcclient.New(addr, creds.User, creds.Pass), nil
 	}
 	transferSvc := transfers.New(transfers.Config{
-		RC:        transferRC,
-		Store:     store,
-		Audit:     auditSvc,
-		Sealer:    sealer,
-		Previewer: previewSvc,
-		Catalog:   catalog,
-		Version:   rclonebin.PinnedVersion,
-		Logger:    logger,
+		RC:            transferRC,
+		Store:         store,
+		Audit:         auditSvc,
+		Sealer:        sealer,
+		Previewer:     previewSvc,
+		Catalog:       catalog,
+		Version:       rclonebin.PinnedVersion,
+		Logger:        logger,
+		MaxConcurrent: cfg.Transfers.MaxConcurrent,
 	})
 
 	mountSvc := mounts.New(func() (mounts.RC, error) {

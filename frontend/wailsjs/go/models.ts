@@ -474,6 +474,7 @@ export namespace app {
 	    filesMoved: number;
 	    result: string;
 	    destructive: boolean;
+	    serverSide: boolean;
 
 	    static createFrom(source: any = {}) {
 	        return new OperationDTO(source);
@@ -492,6 +493,7 @@ export namespace app {
 	        this.filesMoved = source["filesMoved"];
 	        this.result = source["result"];
 	        this.destructive = source["destructive"];
+	        this.serverSide = source["serverSide"];
 	    }
 	}
 	export class OperationOptionDTO {

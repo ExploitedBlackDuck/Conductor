@@ -19,9 +19,19 @@ import (
 // by Defaults during Load, so every field is meaningful by the time the
 // application sees it.
 type Config struct {
-	Log    Log    `toml:"log"`
-	Window Window `toml:"window"`
-	Rclone Rclone `toml:"rclone"`
+	Log       Log       `toml:"log"`
+	Window    Window    `toml:"window"`
+	Rclone    Rclone    `toml:"rclone"`
+	Transfers Transfers `toml:"transfers"`
+}
+
+// Transfers configures operation execution (§7.6).
+type Transfers struct {
+	// MaxConcurrent caps how many operations run at once (a Conductor-level
+	// limit, distinct from rclone's intra-job --transfers; §2.3). Excess
+	// launches queue. Zero resolves to the conservative built-in default; a
+	// negative value means unbounded.
+	MaxConcurrent int `toml:"max_concurrent"`
 }
 
 // Rclone configures how Conductor locates the pinned rclone binary and its
@@ -54,8 +64,9 @@ type Window struct {
 // (§7.11.1).
 func Defaults() Config {
 	return Config{
-		Log:    Log{Level: "info", JSON: false},
-		Window: Window{Width: 1200, Height: 800},
+		Log:       Log{Level: "info", JSON: false},
+		Window:    Window{Width: 1200, Height: 800},
+		Transfers: Transfers{MaxConcurrent: 4},
 	}
 }
 

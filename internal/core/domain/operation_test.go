@@ -2,6 +2,26 @@ package domain
 
 import "testing"
 
+func TestServerSideEligible(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		src  Endpoint
+		dst  Endpoint
+		want bool
+	}{
+		{"same remote", Endpoint{Remote: "s3", Path: "a"}, Endpoint{Remote: "s3", Path: "b"}, true},
+		{"different remotes", Endpoint{Remote: "s3", Path: "a"}, Endpoint{Remote: "b2", Path: "b"}, false},
+		{"local source", Endpoint{Path: "/local"}, Endpoint{Remote: "s3", Path: "b"}, false},
+		{"both local", Endpoint{Path: "/a"}, Endpoint{Path: "/b"}, false},
+	}
+	for _, c := range cases {
+		if got := ServerSideEligible(c.src, c.dst); got != c.want {
+			t.Errorf("%s: ServerSideEligible = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
 func TestParseEndpointRoundTrip(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

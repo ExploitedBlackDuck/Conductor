@@ -32,9 +32,9 @@ func (s *Store) InsertOperation(ctx context.Context, op domain.Operation, opts [
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO operations
-		 (id, kind, src, dst, rclone_version, intensity, started_at, ended_at, bytes_moved, files_moved, result, log_blob_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		op.ID, string(op.Kind), op.Src, op.Dst, op.RcloneVersion, op.Intensity,
+		 (id, kind, src, dst, rclone_version, server_side, intensity, started_at, ended_at, bytes_moved, files_moved, result, log_blob_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		op.ID, string(op.Kind), op.Src, op.Dst, op.RcloneVersion, op.ServerSide, op.Intensity,
 		op.StartedAt.UTC().Format(timeLayout), endedAt, op.BytesMoved, op.FilesMoved, string(op.Result), logRef,
 	); err != nil {
 		return fmt.Errorf("inserting operation %s: %w", op.ID, err)
@@ -117,7 +117,7 @@ func (s *Store) ChangeSetFor(ctx context.Context, operationID string) (domain.Ch
 // operation with that id exists.
 func (s *Store) OperationByID(ctx context.Context, id string) (domain.Operation, []domain.OperationOption, bool, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, kind, src, dst, rclone_version, intensity, started_at, ended_at, bytes_moved, files_moved, result, log_blob_id
+		`SELECT id, kind, src, dst, rclone_version, server_side, intensity, started_at, ended_at, bytes_moved, files_moved, result, log_blob_id
 		 FROM operations WHERE id = ?`, id)
 	op, err := scanOperation(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -180,7 +180,7 @@ func scanOperation(s scanner) (domain.Operation, error) {
 		ended   sql.NullString
 		logBlob sql.NullString
 	)
-	if err := s.Scan(&op.ID, &kind, &op.Src, &op.Dst, &op.RcloneVersion, &op.Intensity,
+	if err := s.Scan(&op.ID, &kind, &op.Src, &op.Dst, &op.RcloneVersion, &op.ServerSide, &op.Intensity,
 		&started, &ended, &op.BytesMoved, &op.FilesMoved, &result, &logBlob); err != nil {
 		return domain.Operation{}, err
 	}

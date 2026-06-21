@@ -22,6 +22,7 @@ type OperationDTO struct {
 	FilesMoved    int64  `json:"filesMoved"`
 	Result        string `json:"result"`
 	Destructive   bool   `json:"destructive"`
+	ServerSide    bool   `json:"serverSide"`
 }
 
 // OperationOptionDTO is one resolved option used by an operation.
@@ -177,7 +178,7 @@ func toOperationDTO(op domain.Operation) OperationDTO {
 	dto := OperationDTO{
 		ID: op.ID, Kind: string(op.Kind), Src: op.Src, Dst: op.Dst,
 		RcloneVersion: op.RcloneVersion, BytesMoved: op.BytesMoved, FilesMoved: op.FilesMoved,
-		Result: string(op.Result), Destructive: op.Kind.IsDestructive(),
+		Result: string(op.Result), Destructive: op.Kind.IsDestructive(), ServerSide: op.ServerSide,
 	}
 	if !op.StartedAt.IsZero() {
 		dto.StartedAt = op.StartedAt.Format(time.RFC3339)

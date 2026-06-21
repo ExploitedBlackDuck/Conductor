@@ -15,13 +15,13 @@ import (
 	"github.com/conductor-app/conductor/internal/core/secrets"
 )
 
-func TestMigrationsReachV6(t *testing.T) {
+func TestMigrationsReachV7(t *testing.T) {
 	t.Parallel()
 	store := openTemp(t)
 	v, err := store.SchemaVersion(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 6, v)
-	assert.Equal(t, 6, sqlitestore.ExpectedSchemaVersion)
+	assert.Equal(t, 7, v)
+	assert.Equal(t, 7, sqlitestore.ExpectedSchemaVersion)
 }
 
 func TestInsertAndQueryOperationWithSealedLog(t *testing.T) {

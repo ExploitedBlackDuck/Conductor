@@ -9,7 +9,13 @@
   import RunControls from "./RunControls.svelte";
 
   const previewStore = builder.preview;
+  const selectionStore = builder.selection;
   onMount(() => void loadCatalog());
+
+  // A copy/move between paths on the same remote can run server-side (§7.11.3),
+  // so data is not proxied through the operator's link.
+  $: sel = $selectionStore;
+  $: serverSideEligible = !!sel.src.remote && sel.src.remote === sel.dst.remote;
 </script>
 
 <div class="layout">
@@ -34,6 +40,12 @@
     <section class="card sticky">
       <h2>Resolved operation</h2>
       <CommandPreview preview={$previewStore} />
+      {#if serverSideEligible}
+        <p class="note ok" title="Source and destination are on the same remote">
+          ↔ Server-side eligible — rclone can copy/move on the remote without using your link.
+        </p>
+      {/if}
+      <p class="note muted">Bandwidth and concurrency caps apply per operation, not shared across runs.</p>
       <div class="run">
         <RunControls preview={$previewStore} />
       </div>
@@ -85,6 +97,16 @@
     margin: 0 0 var(--space-3);
     font-family: var(--font-mono);
     font-size: 0.75rem;
+    color: var(--color-text-muted);
+  }
+  .note {
+    margin: var(--space-3) 0 0;
+    font-size: 0.78rem;
+  }
+  .note.ok {
+    color: #7ee787;
+  }
+  .note.muted {
     color: var(--color-text-muted);
   }
   .muted {

@@ -285,6 +285,7 @@ func (s *Service) Start(ctx context.Context, req RunRequest) (RunHandle, error) 
 		Src:           src,
 		Dst:           dst,
 		RcloneVersion: s.cfg.Version,
+		ServerSide:    domain.ServerSideEligible(req.Src, req.Dst),
 		Intensity:     intensityJSON(req.Ceilings),
 		StartedAt:     startedAt,
 		Result:        domain.ResultRunning,

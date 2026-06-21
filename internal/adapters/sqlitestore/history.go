@@ -15,7 +15,7 @@ import (
 // queries. They return operations without their options — the detail view loads
 // options via OperationByID.
 
-const operationColumns = `id, kind, src, dst, rclone_version, intensity,
+const operationColumns = `id, kind, src, dst, rclone_version, server_side, intensity,
 	started_at, ended_at, bytes_moved, files_moved, result, log_blob_id`
 
 // RecentOperations returns the most recent operations, newest first, capped at

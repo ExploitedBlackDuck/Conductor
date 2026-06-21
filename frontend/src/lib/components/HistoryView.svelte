@@ -139,7 +139,9 @@
                       {/each}
                     </div>
                   {/if}
-                  <div class="meta">rclone {openDetail.operation.rcloneVersion} · id {openDetail.operation.id}</div>
+                  <div class="meta">
+                    rclone {openDetail.operation.rcloneVersion} · id {openDetail.operation.id}{#if openDetail.operation.serverSide} · <span class="ss">server-side</span>{/if}
+                  </div>
                 </td>
               </tr>
             {/if}
@@ -309,6 +311,9 @@
     margin-top: var(--space-2);
     color: var(--color-text-muted);
     font-size: 0.75rem;
+  }
+  .ss {
+    color: #7ee787;
   }
   .err {
     margin: var(--space-3) 0 0;

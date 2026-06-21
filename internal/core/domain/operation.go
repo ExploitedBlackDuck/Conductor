@@ -48,6 +48,14 @@ func (e Endpoint) String() string {
 	return e.Remote + ":" + e.Path
 }
 
+// ServerSideEligible reports whether a copy/move between src and dst could run
+// server-side (§7.3): both must be on the same configured remote, the
+// conservative subset of "same backend identity" Conductor can determine without
+// inspecting remote config. A local endpoint is never server-side eligible.
+func ServerSideEligible(src, dst Endpoint) bool {
+	return src.Remote != "" && src.Remote == dst.Remote
+}
+
 // ParseEndpoint splits an rclone-style "remote:path" string into an Endpoint. A
 // string with no colon — or whose colon falls after a path separator (a local
 // path that merely contains a colon) — is treated as a local path with no

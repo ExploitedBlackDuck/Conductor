@@ -30,6 +30,11 @@ type Operation struct {
 	Dst string
 	// RcloneVersion is the pinned rclone version the operation ran against.
 	RcloneVersion string
+	// ServerSide reports that source and destination shared a backend identity,
+	// so rclone could perform the copy/move server-side without proxying data
+	// through the operator's link (§7.3). Conductor detects and records the
+	// expectation; it does not force a flag.
+	ServerSide bool
 	// Intensity is the JSON-encoded effective governance caps applied (§7.6).
 	Intensity string
 	// StartedAt / EndedAt bound the run; EndedAt is zero while running.

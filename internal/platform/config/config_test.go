@@ -36,6 +36,9 @@ json = true
 
 [window]
 width = 1440
+
+[transfers]
+max_concurrent = 8
 `)
 
 	cfg, err := Load(path)
@@ -44,8 +47,14 @@ width = 1440
 	assert.Equal(t, "debug", cfg.Log.Level)
 	assert.True(t, cfg.Log.JSON)
 	assert.Equal(t, 1440, cfg.Window.Width)
+	assert.Equal(t, 8, cfg.Transfers.MaxConcurrent)
 	// Unspecified field falls back to the default.
 	assert.Equal(t, Defaults().Window.Height, cfg.Window.Height)
+}
+
+func TestDefaultMaxConcurrent(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 4, Defaults().Transfers.MaxConcurrent)
 }
 
 func TestLoadMalformedFileErrors(t *testing.T) {
