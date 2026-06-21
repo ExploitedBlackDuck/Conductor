@@ -607,6 +607,9 @@ export namespace app {
 	    intact: boolean;
 	    brokenAtSeq: number;
 	    reason: string;
+	    headSigned: boolean;
+	    signatureValid: boolean;
+	    trustworthy: boolean;
 	    error?: ErrorDTO;
 
 	    static createFrom(source: any = {}) {
@@ -619,6 +622,9 @@ export namespace app {
 	        this.intact = source["intact"];
 	        this.brokenAtSeq = source["brokenAtSeq"];
 	        this.reason = source["reason"];
+	        this.headSigned = source["headSigned"];
+	        this.signatureValid = source["signatureValid"];
+	        this.trustworthy = source["trustworthy"];
 	        this.error = this.convertValues(source["error"], ErrorDTO);
 	    }
 

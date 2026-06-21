@@ -159,7 +159,14 @@ func run() error {
 		return fmt.Errorf("initialising sealer: %w", err)
 	}
 
-	auditSvc := audit.New(store, ports.SystemClock{})
+	// The audit-signing key (distinct from the data key, §7.9) signs chain heads
+	// so a full recompute is detectable without it (ADR-0010).
+	signingKey, err := secrets.LoadOrCreateSigningKey(ctx, secretStore)
+	if err != nil {
+		return fmt.Errorf("loading audit-signing key: %w", err)
+	}
+
+	auditSvc := audit.New(store, ports.SystemClock{}, audit.WithSigningKey(signingKey))
 
 	// Reconcile state orphaned by an unclean exit (§2.3): rclone jobs die with
 	// the daemon, so any operation still marked running on this launch is closed
@@ -174,6 +181,13 @@ func run() error {
 			map[string]any{"reconciled": n}); aerr != nil {
 			logger.Error("auditing reconciliation failed", "error", aerr)
 		}
+	}
+
+	// Anchor the chain head at startup so a signed head always exists (ADR-0010);
+	// it is re-signed on export and clean shutdown. A signing failure is logged,
+	// not fatal — the chain still hash-verifies.
+	if _, serr := auditSvc.SignHead(ctx); serr != nil {
+		logger.Error("signing audit head failed", "error", serr)
 	}
 
 	// The destructive-op preview gate (ADR-0015) runs the pinned rclone with

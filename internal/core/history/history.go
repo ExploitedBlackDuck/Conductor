@@ -28,11 +28,13 @@ type Store interface {
 	ClearHistory(ctx context.Context) (int64, error)
 }
 
-// AuditLog verifies and lists the audit chain and records new entries (§7.8).
+// AuditLog verifies and lists the audit chain, records new entries, and signs
+// the chain head (§7.8, ADR-0010).
 type AuditLog interface {
 	Verify(ctx context.Context) (audit.Result, error)
 	Entries(ctx context.Context) ([]domain.AuditEntry, error)
 	Record(ctx context.Context, action domain.AuditAction, subject string, detail any) (domain.AuditEntry, error)
+	SignHead(ctx context.Context) (domain.AuditAnchor, error)
 }
 
 // Config configures the Service.
@@ -85,6 +87,13 @@ func (s *Service) AuditEntries(ctx context.Context) ([]domain.AuditEntry, error)
 	return s.cfg.Audit.Entries(ctx)
 }
 
+// SignAuditHead signs the current audit chain head (ADR-0010), called
+// periodically and on clean shutdown so the head is anchored.
+func (s *Service) SignAuditHead(ctx context.Context) error {
+	_, err := s.cfg.Audit.SignHead(ctx)
+	return err
+}
+
 // ClearHistory deletes operation rows and their sealed logs; the append-only
 // audit log is preserved (§7.11.7).
 func (s *Service) ClearHistory(ctx context.Context) (int64, error) {
@@ -114,6 +123,14 @@ type ExportRequest struct {
 // the export in the audit log (§7.7, §7.8). The returned bytes are the file
 // contents; the caller writes them to disk or streams them to the UI.
 func (s *Service) Export(ctx context.Context, req ExportRequest) ([]byte, error) {
+	// Sign the current chain head before exporting so the tamper-evident record
+	// carries a fresh signed head (ADR-0010, §7.8). A signing failure must not
+	// block the export — the existing anchor and the chain still verify.
+	if _, serr := s.cfg.Audit.SignHead(ctx); serr != nil {
+		// best-effort: proceed with whatever anchor already exists.
+		_ = serr
+	}
+
 	ops, err := s.scopedOperations(ctx, req)
 	if err != nil {
 		return nil, err

@@ -16,7 +16,7 @@ import (
 // ExpectedSchemaVersion is the schema version this binary was built against. It
 // equals the highest embedded migration number and is asserted at Open so a
 // binary never runs against a newer or partially-migrated database.
-const ExpectedSchemaVersion = 4
+const ExpectedSchemaVersion = 5
 
 // migration is one parsed, embedded SQL migration.
 type migration struct {

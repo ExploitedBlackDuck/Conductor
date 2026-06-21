@@ -48,3 +48,18 @@ type AuditEntry struct {
 	// Hash is the hex-encoded SHA-256 chain hash of this entry.
 	Hash string
 }
+
+// AuditAnchor is a periodically-signed chain head (ADR-0010, §7.8). Hash-chaining
+// alone detects partial or naive edits; an anchor signs the head with a separate
+// keyring-held key so a *full recompute* of the chain — which would re-hash every
+// entry consistently — is still detectable by anyone without that key.
+type AuditAnchor struct {
+	// Seq is the chain position whose head this anchor signs.
+	Seq int64
+	// HeadHash is the hex-encoded Hash of the entry at Seq at signing time.
+	HeadHash string
+	// Signature is the MAC over (Seq, HeadHash) under the audit-signing key.
+	Signature []byte
+	// SignedAt is when the head was signed (stored in UTC).
+	SignedAt time.Time
+}

@@ -22,17 +22,19 @@
     <div class="head">
       <h2>Audit log</h2>
       {#if $audit}
-        <span class="indicator" class:intact={$audit.intact} class:broken={!$audit.intact}>
+        <span class="indicator" class:intact={$audit.trustworthy} class:broken={!$audit.trustworthy}>
           <span class="dot"></span>
-          {#if $audit.intact}
-            Chain intact · {$audit.entries.length} entries
-          {:else}
+          {#if $audit.trustworthy}
+            Chain intact · {$audit.entries.length} entries{#if $audit.headSigned} · signed head verified{/if}
+          {:else if !$audit.intact}
             Tampering detected at entry {$audit.brokenAtSeq}
+          {:else}
+            Signed-head verification failed
           {/if}
         </span>
       {/if}
     </div>
-    {#if $audit && !$audit.intact}
+    {#if $audit && !$audit.trustworthy && $audit.reason}
       <p class="err" role="alert">{$audit.reason}</p>
     {/if}
     {#if $audit?.error}

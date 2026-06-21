@@ -68,6 +68,10 @@ func (a *App) OnShutdown(ctx context.Context) {
 	// Finalize in-flight operations before the daemon goes away, then stop the
 	// daemon's supervision and poll loop.
 	a.transfers.Close()
+	// Anchor the audit chain head at clean exit (ADR-0010, §7.8).
+	if err := a.history.SignAuditHead(ctx); err != nil {
+		a.log.ErrorContext(ctx, "signing audit head on shutdown failed", "error", err)
+	}
 	if err := a.control.Stop(ctx); err != nil {
 		a.log.ErrorContext(ctx, "error stopping daemon", "error", err)
 	}

@@ -56,14 +56,18 @@ type AuditEntryDTO struct {
 	Hash    string `json:"hash"`
 }
 
-// AuditViewDTO is the audit chain with its verification status. Intact drives
-// the green/red chain-verification indicator (§7.11.8).
+// AuditViewDTO is the audit chain with its verification status. Trustworthy
+// drives the green/red indicator: the chain links verify AND, where a signed
+// head exists, its signature verifies (§7.11.8, ADR-0010).
 type AuditViewDTO struct {
-	Entries     []AuditEntryDTO `json:"entries"`
-	Intact      bool            `json:"intact"`
-	BrokenAtSeq int64           `json:"brokenAtSeq"`
-	Reason      string          `json:"reason"`
-	Error       *ErrorDTO       `json:"error"`
+	Entries        []AuditEntryDTO `json:"entries"`
+	Intact         bool            `json:"intact"`
+	BrokenAtSeq    int64           `json:"brokenAtSeq"`
+	Reason         string          `json:"reason"`
+	HeadSigned     bool            `json:"headSigned"`
+	SignatureValid bool            `json:"signatureValid"`
+	Trustworthy    bool            `json:"trustworthy"`
+	Error          *ErrorDTO       `json:"error"`
 }
 
 // ExportResultDTO carries an export's bytes (base64) and suggested filename.
@@ -117,7 +121,10 @@ func (a *App) AuditView() AuditViewDTO {
 	if err != nil {
 		return AuditViewDTO{Error: errorToDTO(err)}
 	}
-	out := AuditViewDTO{Intact: res.Intact, BrokenAtSeq: res.BrokenAtSeq, Reason: res.Reason}
+	out := AuditViewDTO{
+		Intact: res.Intact, BrokenAtSeq: res.BrokenAtSeq, Reason: res.Reason,
+		HeadSigned: res.HeadSigned, SignatureValid: res.SignatureValid, Trustworthy: res.Trustworthy(),
+	}
 	for _, e := range entries {
 		out.Entries = append(out.Entries, AuditEntryDTO{
 			Seq: e.Seq, At: e.At.Format(time.RFC3339), Action: string(e.Action),

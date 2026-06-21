@@ -30,6 +30,7 @@ const (
 	CodeStoreMigration          Code = "ERR_STORE_MIGRATION"
 	CodeSecretUnavailable       Code = "ERR_SECRET_UNAVAILABLE" //nolint:gosec // G101 false positive: an error code, not a credential
 	CodeAuditChainBroken        Code = "ERR_AUDIT_CHAIN_BROKEN"
+	CodeAuditSignatureInvalid   Code = "ERR_AUDIT_SIGNATURE_INVALID"
 )
 
 // Error is a coded application error. It wraps an underlying cause (preserved

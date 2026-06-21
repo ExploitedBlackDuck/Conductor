@@ -7,6 +7,7 @@ package audit
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -29,20 +30,70 @@ type Store interface {
 	AppendEntry(ctx context.Context, build func(prev *domain.AuditEntry) (domain.AuditEntry, error)) (domain.AuditEntry, error)
 	// Entries returns all audit entries in ascending Seq order.
 	Entries(ctx context.Context) ([]domain.AuditEntry, error)
+	// InsertAnchor appends a signed chain head (ADR-0010).
+	InsertAnchor(ctx context.Context, a domain.AuditAnchor) error
+	// LatestAnchor returns the most recently signed head, or false when none.
+	LatestAnchor(ctx context.Context) (domain.AuditAnchor, bool, error)
 }
 
 // Service records and verifies audit entries.
 type Service struct {
 	store Store
 	clock ports.Clock
+	// signingKey signs chain heads (ADR-0010); nil disables signing/verification.
+	signingKey []byte
 	// mu serialises Record calls in-process; AppendEntry provides the
 	// cross-transaction guarantee at the store.
 	mu sync.Mutex
 }
 
+// Option configures a Service.
+type Option func(*Service)
+
+// WithSigningKey enables signed chain heads under key (ADR-0010). Without it,
+// the service still hash-chains entries but does not sign or verify heads.
+func WithSigningKey(key []byte) Option {
+	return func(s *Service) { s.signingKey = key }
+}
+
 // New constructs an audit Service.
-func New(store Store, clock ports.Clock) *Service {
-	return &Service{store: store, clock: clock}
+func New(store Store, clock ports.Clock, opts ...Option) *Service {
+	s := &Service{store: store, clock: clock}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+// SignHead signs the current chain head with the signing key and records it as
+// an anchor (ADR-0010, §7.8), so a later full recompute of the chain is
+// detectable without the key. It is a no-op when signing is disabled or the log
+// is empty. Called periodically and on export.
+func (s *Service) SignHead(ctx context.Context) (domain.AuditAnchor, error) {
+	if s.signingKey == nil {
+		return domain.AuditAnchor{}, nil
+	}
+	entries, err := s.store.Entries(ctx)
+	if err != nil {
+		return domain.AuditAnchor{}, fmt.Errorf("loading audit entries: %w", err)
+	}
+	if len(entries) == 0 {
+		return domain.AuditAnchor{}, nil
+	}
+	tail := entries[len(entries)-1]
+	a := domain.AuditAnchor{Seq: tail.Seq, HeadHash: tail.Hash, SignedAt: s.clock.Now().UTC()}
+	a.Signature = headMAC(s.signingKey, a.Seq, a.HeadHash)
+	if err := s.store.InsertAnchor(ctx, a); err != nil {
+		return domain.AuditAnchor{}, err
+	}
+	return a, nil
+}
+
+// headMAC is the HMAC-SHA256 over (seq, headHash) under the signing key.
+func headMAC(key []byte, seq int64, headHash string) []byte {
+	m := hmac.New(sha256.New, key)
+	fmt.Fprintf(m, "%d:%s", seq, headHash)
+	return m.Sum(nil)
 }
 
 // Entries returns the full audit chain in ascending Seq order, for the audit
@@ -93,6 +144,20 @@ type Result struct {
 	BrokenAtSeq int64
 	// Reason describes the first failure, or "" when intact.
 	Reason string
+	// HeadSigned is true when a signed chain head (anchor) exists and signing is
+	// enabled, so the signed-head check below is meaningful.
+	HeadSigned bool
+	// SignatureValid is true when the signed head verifies against the chain and
+	// the signing key. False with HeadSigned true signals a full rewrite or a
+	// tampered anchor (ADR-0010, §8.3).
+	SignatureValid bool
+}
+
+// Trustworthy reports whether the chain is both link-intact and (where a signed
+// head exists) signature-valid — the single signal the UI's green/red indicator
+// uses (§7.11.8).
+func (r Result) Trustworthy() bool {
+	return r.Intact && (!r.HeadSigned || r.SignatureValid)
 }
 
 // Verify walks the chain from genesis, recomputing each hash and checking each
@@ -104,7 +169,13 @@ func (s *Service) Verify(ctx context.Context) (Result, error) {
 		return Result{}, fmt.Errorf("loading audit entries: %w", err)
 	}
 
+	anchor, hasAnchor, err := s.store.LatestAnchor(ctx)
+	if err != nil {
+		return Result{}, fmt.Errorf("loading audit anchor: %w", err)
+	}
+
 	var prevHash string
+	var hashAtAnchor string // the recomputed head hash at the anchor's seq
 	for i, e := range entries {
 		expectedSeq := int64(i + 1)
 		if e.Seq != expectedSeq {
@@ -113,13 +184,37 @@ func (s *Service) Verify(ctx context.Context) (Result, error) {
 		if e.PrevHash != prevHash {
 			return brokenResult(len(entries), e.Seq, "prev-hash does not match preceding entry"), nil
 		}
-		if got := chainHash(prevHash, e); got != e.Hash {
+		got := chainHash(prevHash, e)
+		if got != e.Hash {
 			return brokenResult(len(entries), e.Seq, "hash mismatch (entry altered)"), nil
+		}
+		if hasAnchor && e.Seq == anchor.Seq {
+			hashAtAnchor = got
 		}
 		prevHash = e.Hash
 	}
 
-	return Result{Intact: true, Count: len(entries)}, nil
+	res := Result{Intact: true, Count: len(entries)}
+	// The chain links verify; if a signed head exists, check it still matches the
+	// chain and carries a valid signature. A full recompute keeps the links
+	// consistent but cannot reproduce the signed head without the key (§8.3).
+	if s.signingKey != nil && hasAnchor {
+		res.HeadSigned = true
+		sigOK := hmac.Equal(anchor.Signature, headMAC(s.signingKey, anchor.Seq, anchor.HeadHash))
+		headMatches := hashAtAnchor != "" && hashAtAnchor == anchor.HeadHash
+		res.SignatureValid = sigOK && headMatches
+		if !res.SignatureValid {
+			switch {
+			case !sigOK:
+				res.Reason = "audit anchor signature is invalid (anchor tampered or wrong key)"
+			case hashAtAnchor == "":
+				res.Reason = "signed head references a missing entry (entries deleted below the anchor)"
+			default:
+				res.Reason = "signed head does not match the chain (possible full rewrite)"
+			}
+		}
+	}
+	return res, nil
 }
 
 // VerifyOrError is Verify with the broken chain mapped to a coded error, for
@@ -132,6 +227,10 @@ func (s *Service) VerifyOrError(ctx context.Context) (Result, error) {
 	if !res.Intact {
 		return res, coreerr.New(coreerr.CodeAuditChainBroken,
 			fmt.Sprintf("audit chain broken at entry %d: %s", res.BrokenAtSeq, res.Reason), nil)
+	}
+	if res.HeadSigned && !res.SignatureValid {
+		return res, coreerr.New(coreerr.CodeAuditSignatureInvalid,
+			"audit signed-head verification failed: "+res.Reason, nil)
 	}
 	return res, nil
 }

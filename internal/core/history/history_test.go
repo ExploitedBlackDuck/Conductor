@@ -74,12 +74,18 @@ type fakeAudit struct {
 	entries  []domain.AuditEntry
 	intact   bool
 	recorded []domain.AuditAction
+	signed   int
 }
 
 func (a *fakeAudit) Verify(context.Context) (audit.Result, error) {
 	return audit.Result{Intact: a.intact, Count: len(a.entries)}, nil
 }
 func (a *fakeAudit) Entries(context.Context) ([]domain.AuditEntry, error) { return a.entries, nil }
+func (a *fakeAudit) SignHead(context.Context) (domain.AuditAnchor, error) {
+	a.signed++
+	return domain.AuditAnchor{}, nil
+}
+
 func (a *fakeAudit) Record(_ context.Context, action domain.AuditAction, _ string, _ any) (domain.AuditEntry, error) {
 	a.recorded = append(a.recorded, action)
 	return domain.AuditEntry{}, nil

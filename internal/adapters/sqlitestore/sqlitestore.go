@@ -140,6 +140,44 @@ func (s *Store) Entries(ctx context.Context) ([]domain.AuditEntry, error) {
 	return out, nil
 }
 
+// InsertAnchor appends a signed chain head (ADR-0010). Anchors are append-only;
+// the newest is the current signed head.
+func (s *Store) InsertAnchor(ctx context.Context, a domain.AuditAnchor) error {
+	if _, err := s.db.ExecContext(
+		ctx,
+		`INSERT INTO audit_anchors (seq, head_hash, signature, signed_at) VALUES (?, ?, ?, ?)`,
+		a.Seq, a.HeadHash, a.Signature, a.SignedAt.UTC().Format(timeLayout),
+	); err != nil {
+		return fmt.Errorf("inserting audit anchor at seq %d: %w", a.Seq, err)
+	}
+	return nil
+}
+
+// LatestAnchor returns the most recently signed chain head, or false when none
+// has been signed yet.
+func (s *Store) LatestAnchor(ctx context.Context) (domain.AuditAnchor, bool, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT seq, head_hash, signature, signed_at FROM audit_anchors
+		 ORDER BY signed_at DESC, seq DESC LIMIT 1`)
+	var (
+		a        domain.AuditAnchor
+		signedAt string
+	)
+	err := row.Scan(&a.Seq, &a.HeadHash, &a.Signature, &signedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.AuditAnchor{}, false, nil
+	}
+	if err != nil {
+		return domain.AuditAnchor{}, false, fmt.Errorf("reading latest audit anchor: %w", err)
+	}
+	at, err := time.Parse(timeLayout, signedAt)
+	if err != nil {
+		return domain.AuditAnchor{}, false, fmt.Errorf("parsing anchor signed_at %q: %w", signedAt, err)
+	}
+	a.SignedAt = at
+	return a, true, nil
+}
+
 // lastEntryTx returns the tail entry within a transaction, or nil when the log
 // is empty.
 func lastEntryTx(ctx context.Context, tx *sql.Tx) (*domain.AuditEntry, error) {

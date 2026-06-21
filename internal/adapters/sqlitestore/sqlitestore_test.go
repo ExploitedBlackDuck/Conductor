@@ -1,6 +1,7 @@
 package sqlitestore_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"path/filepath"
@@ -83,6 +84,54 @@ func TestAuditChainPersistsAndVerifiesOnRealSQLite(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, res.Intact)
 	assert.Equal(t, 6, res.Count)
+}
+
+func TestSignedHeadPersistsAndVerifiesOnRealSQLite(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "conductor.db")
+	store, err := sqlitestore.Open(ctx, path)
+	require.NoError(t, err)
+
+	key := bytes.Repeat([]byte{0x77}, 32)
+	svc := audit.New(store, &fixedClock{t: time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)}, audit.WithSigningKey(key))
+	for i := 0; i < 4; i++ {
+		_, rerr := svc.Record(ctx, domain.ActionOperationStart, "op", map[string]int{"i": i})
+		require.NoError(t, rerr)
+	}
+	anchor, err := svc.SignHead(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(4), anchor.Seq)
+
+	// The anchor round-trips through the real store and the signed head verifies.
+	got, ok, err := store.LatestAnchor(ctx)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, anchor.HeadHash, got.HeadHash)
+	res, err := svc.Verify(ctx)
+	require.NoError(t, err)
+	assert.True(t, res.Trustworthy())
+	assert.True(t, res.SignatureValid)
+	require.NoError(t, store.Close())
+
+	// Tamper the signed head on disk to forge a different head; the signature is
+	// not re-derivable without the key, so verification catches it on reopen.
+	raw, err := sql.Open("sqlite", path)
+	require.NoError(t, err)
+	_, err = raw.ExecContext(ctx, `UPDATE audit_anchors SET head_hash = 'deadbeef'`)
+	require.NoError(t, err)
+	require.NoError(t, raw.Close())
+
+	reopened, err := sqlitestore.Open(ctx, path)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = reopened.Close() })
+	svc2 := audit.New(reopened, &fixedClock{t: time.Date(2026, 6, 21, 13, 0, 0, 0, time.UTC)}, audit.WithSigningKey(key))
+	res2, err := svc2.Verify(ctx)
+	require.NoError(t, err)
+	assert.True(t, res2.Intact, "the entry chain itself is untouched")
+	assert.True(t, res2.HeadSigned)
+	assert.False(t, res2.SignatureValid, "a forged signed head is caught")
+	assert.False(t, res2.Trustworthy())
 }
 
 func TestAuditTamperOnDiskBreaksVerification(t *testing.T) {

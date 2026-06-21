@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"testing"
@@ -17,6 +18,19 @@ import (
 // read-tail-then-append contract the sqlitestore adapter provides.
 type memStore struct {
 	entries []domain.AuditEntry
+	anchors []domain.AuditAnchor
+}
+
+func (m *memStore) InsertAnchor(_ context.Context, a domain.AuditAnchor) error {
+	m.anchors = append(m.anchors, a)
+	return nil
+}
+
+func (m *memStore) LatestAnchor(_ context.Context) (domain.AuditAnchor, bool, error) {
+	if len(m.anchors) == 0 {
+		return domain.AuditAnchor{}, false, nil
+	}
+	return m.anchors[len(m.anchors)-1], true, nil
 }
 
 func (m *memStore) AppendEntry(_ context.Context, build func(prev *domain.AuditEntry) (domain.AuditEntry, error)) (domain.AuditEntry, error) {
@@ -46,11 +60,14 @@ func (c *fixedClock) Now() time.Time {
 	return c.t
 }
 
-func newService() (*Service, *memStore) {
+func newService(opts ...Option) (*Service, *memStore) {
 	store := &memStore{}
 	clk := &fixedClock{t: time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)}
-	return New(store, clk), store
+	return New(store, clk, opts...), store
 }
+
+// signingKey is a fixed 32-byte test key.
+var signingKey = bytes.Repeat([]byte{0x55}, 32)
 
 func TestRecordChainsEntries(t *testing.T) {
 	t.Parallel()
@@ -153,4 +170,97 @@ func TestVerifyDetectsTampering(t *testing.T) {
 			assert.Equal(t, coreerr.CodeAuditChainBroken, code)
 		})
 	}
+}
+
+func TestSignHeadAndVerifySignature(t *testing.T) {
+	t.Parallel()
+	svc, _ := newService(WithSigningKey(signingKey))
+	ctx := context.Background()
+
+	for i := 0; i < 3; i++ {
+		_, err := svc.Record(ctx, domain.ActionOperationStart, "op", map[string]int{"i": i})
+		require.NoError(t, err)
+	}
+	anchor, err := svc.SignHead(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), anchor.Seq)
+	assert.NotEmpty(t, anchor.Signature)
+
+	res, err := svc.Verify(ctx)
+	require.NoError(t, err)
+	assert.True(t, res.Intact)
+	assert.True(t, res.HeadSigned)
+	assert.True(t, res.SignatureValid)
+	assert.True(t, res.Trustworthy())
+}
+
+// TestSignedHeadDetectsFullRecompute is the ADR-0010 property: an attacker who
+// rewrites every entry and re-hashes the whole chain (so the links stay
+// internally consistent) is still caught, because the signed head no longer
+// matches the chain and cannot be re-signed without the key.
+func TestSignedHeadDetectsFullRecompute(t *testing.T) {
+	t.Parallel()
+	svc, store := newService(WithSigningKey(signingKey))
+	ctx := context.Background()
+	for i := 0; i < 3; i++ {
+		_, err := svc.Record(ctx, domain.ActionOperationStart, "op", map[string]int{"i": i})
+		require.NoError(t, err)
+	}
+	_, err := svc.SignHead(ctx)
+	require.NoError(t, err)
+
+	// Simulate a full recompute: alter entry 2's subject and re-derive every hash
+	// from genesis so the chain links verify cleanly.
+	store.entries[1].Subject = "op-evil"
+	var prev string
+	for i := range store.entries {
+		store.entries[i].PrevHash = prev
+		store.entries[i].Hash = chainHash(prev, store.entries[i])
+		prev = store.entries[i].Hash
+	}
+
+	res, err := svc.Verify(ctx)
+	require.NoError(t, err)
+	assert.True(t, res.Intact, "the recomputed chain links are internally consistent")
+	assert.True(t, res.HeadSigned)
+	assert.False(t, res.SignatureValid, "the signed head no longer matches the rewritten chain")
+	assert.False(t, res.Trustworthy())
+
+	_, verr := svc.VerifyOrError(ctx)
+	require.Error(t, verr)
+	code, _ := coreerr.CodeOf(verr)
+	assert.Equal(t, coreerr.CodeAuditSignatureInvalid, code)
+}
+
+// TestTamperedAnchorIsDetected proves an attacker who edits the anchor to match
+// a rewritten head still fails, lacking the key to re-sign it.
+func TestTamperedAnchorIsDetected(t *testing.T) {
+	t.Parallel()
+	svc, store := newService(WithSigningKey(signingKey))
+	ctx := context.Background()
+	_, err := svc.Record(ctx, domain.ActionOperationStart, "op", nil)
+	require.NoError(t, err)
+	_, err = svc.SignHead(ctx)
+	require.NoError(t, err)
+
+	store.anchors[0].HeadHash = "deadbeef" // forged head, but signature not re-derivable
+	res, err := svc.Verify(ctx)
+	require.NoError(t, err)
+	assert.False(t, res.SignatureValid)
+}
+
+// TestVerifyWithoutSigningKeyIgnoresHead proves that with signing disabled the
+// chain still verifies on its links alone (no signature assertion).
+func TestVerifyWithoutSigningKeyIgnoresHead(t *testing.T) {
+	t.Parallel()
+	svc, _ := newService() // no signing key
+	ctx := context.Background()
+	_, err := svc.Record(ctx, domain.ActionOperationStart, "op", nil)
+	require.NoError(t, err)
+
+	res, err := svc.Verify(ctx)
+	require.NoError(t, err)
+	assert.True(t, res.Intact)
+	assert.False(t, res.HeadSigned)
+	assert.True(t, res.Trustworthy())
 }

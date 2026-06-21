@@ -23,6 +23,14 @@ import (
 // stored.
 const dataKeyName = "data-key"
 
+// signingKeyName is the keyring entry for the audit-signing key. It is distinct
+// from the data key (ADR-0010, §7.9) so the sealing and signing roles never
+// share key material.
+const signingKeyName = "audit-signing-key"
+
+// SigningKeySize is the length of the audit-signing key (HMAC-SHA256 key).
+const SigningKeySize = 32
+
 // Sealed is the result of sealing plaintext: a random nonce and the AEAD
 // ciphertext. Both are stored; neither is secret on its own.
 type Sealed struct {
@@ -93,27 +101,40 @@ func LoadOrCreateDataKey(ctx context.Context, store ports.SecretStore) ([]byte, 
 // loadOrCreateDataKey is the testable core, taking the randomness source
 // explicitly.
 func loadOrCreateDataKey(ctx context.Context, store ports.SecretStore, randSrc io.Reader) ([]byte, error) {
-	encoded, err := store.Get(ctx, dataKeyName)
+	return loadOrCreateKey(ctx, store, randSrc, dataKeyName, chacha20poly1305.KeySize)
+}
+
+// LoadOrCreateSigningKey returns the per-install audit-signing key, generating a
+// fresh random key on first run (ADR-0010). It is distinct from the data key so
+// the sealing and signing roles do not share key material (§7.9).
+func LoadOrCreateSigningKey(ctx context.Context, store ports.SecretStore) ([]byte, error) {
+	return loadOrCreateKey(ctx, store, rand.Reader, signingKeyName, SigningKeySize)
+}
+
+// loadOrCreateKey returns the named key from the secret store, generating a fresh
+// random key of size bytes on first run and storing it base64-encoded.
+func loadOrCreateKey(ctx context.Context, store ports.SecretStore, randSrc io.Reader, name string, size int) ([]byte, error) {
+	encoded, err := store.Get(ctx, name)
 	switch {
 	case err == nil:
 		key, decErr := base64.StdEncoding.DecodeString(encoded)
 		if decErr != nil {
-			return nil, coreerr.New(coreerr.CodeSecretUnavailable, "stored data key is corrupt", decErr)
+			return nil, coreerr.New(coreerr.CodeSecretUnavailable, "stored "+name+" is corrupt", decErr)
 		}
-		if len(key) != chacha20poly1305.KeySize {
-			return nil, coreerr.New(coreerr.CodeSecretUnavailable, "stored data key has wrong length", nil)
+		if len(key) != size {
+			return nil, coreerr.New(coreerr.CodeSecretUnavailable, "stored "+name+" has wrong length", nil)
 		}
 		return key, nil
 	case errors.Is(err, ports.ErrSecretNotFound):
-		key := make([]byte, chacha20poly1305.KeySize)
+		key := make([]byte, size)
 		if _, rErr := io.ReadFull(randSrc, key); rErr != nil {
-			return nil, fmt.Errorf("generating data key: %w", rErr)
+			return nil, fmt.Errorf("generating %s: %w", name, rErr)
 		}
-		if sErr := store.Set(ctx, dataKeyName, base64.StdEncoding.EncodeToString(key)); sErr != nil {
-			return nil, coreerr.New(coreerr.CodeSecretUnavailable, "storing data key in keyring", sErr)
+		if sErr := store.Set(ctx, name, base64.StdEncoding.EncodeToString(key)); sErr != nil {
+			return nil, coreerr.New(coreerr.CodeSecretUnavailable, "storing "+name+" in keyring", sErr)
 		}
 		return key, nil
 	default:
-		return nil, coreerr.New(coreerr.CodeSecretUnavailable, "reading data key from keyring", err)
+		return nil, coreerr.New(coreerr.CodeSecretUnavailable, "reading "+name+" from keyring", err)
 	}
 }
