@@ -33,8 +33,11 @@
   ];
 
   // The command palette navigates to any view (§7.13); destructive actions still
-  // pass their own gate, so this only sets the active view.
-  $: paletteCommands = nav.map((item) => ({
+  // pass their own gate, so this only sets the active view. This is a plain
+  // const, not a `$:` block: `nav` never changes, and making it reactive would
+  // both read and (statically) write `view`, an infinite update loop that froze
+  // the UI on every nav click.
+  const paletteCommands = nav.map((item) => ({
     id: item.id,
     label: item.label,
     hint: "view",
